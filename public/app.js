@@ -18,7 +18,8 @@ const shopTitle = () => S.lang === 'mr' && S.settings.shopNameMr ? S.settings.sh
 
 async function api(method, url, body) {
   const res = await fetch(url, { method, headers: body ? { 'Content-Type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined });
-  const data = await res.json().catch(() => ({}));
+  const data = await res.json().catch(() => null);
+  if (data === null) throw new Error('Server error: the API did not return data. Check the deployment and MongoDB settings.');
   if (res.status === 401 && url !== '/api/login' && url !== '/api/me') { S.user = null; renderApp(); throw new Error(data.error || 'Login required'); }
   if (!res.ok) throw new Error(data.error || 'Error');
   return data;
@@ -33,8 +34,8 @@ const guard = fn => async (...a) => { try { await fn(...a); } catch (e) { toast(
 // ---------------- shell ----------------
 async function init() {
   document.documentElement.lang = S.lang;
-  try { S.user = await api('GET', '/api/me'); } catch { S.user = null; }
-  if (S.user) await loadBase();
+  try { S.user = await api('GET', '/api/me'); } catch (e) { S.user = null; if (!/log/i.test(e.message)) setTimeout(() => toast(e.message, true), 100); }
+  if (S.user) { try { await loadBase(); } catch (e) { S.user = null; setTimeout(() => toast(e.message, true), 100); } }
   renderApp();
 }
 async function loadBase() {
@@ -84,8 +85,7 @@ function calc() {
 }
 
 function viewBilling(v) {
-  v.innerHTML = `<div class="pagehead"><h2>${t('billing')}</h2></div>
-  <div class="billgrid">
+  v.innerHTML = `<div class="billgrid">
     <div>
       <section class="card"><h3>${t('custDetails')}</h3>
         <div class="row"><div><label>${t('customer')} *</label><input id="cn" value="${esc(S.customer)}" maxlength="80" autocomplete="off"></div>
