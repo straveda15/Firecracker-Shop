@@ -1,6 +1,6 @@
 # Firecracker Shop - Billing & Inventory
 
-Setup: copy `.env.example` to `.env`, fill in MONGODB_URI, SESSION_SECRET, ADMIN_PASSWORD, STAFF_PASSWORD, then `npm install`.
+Setup: copy `.env.example` to `.env`, fill in MONGODB_URI, ADMIN_PASSWORD, STAFF_PASSWORD, then `npm install`.
 Run: double-click `start.bat` (or `npm start`; Node 20.12+).
 Open http://localhost:3000. The console also prints a LAN address to use from a phone on the same Wi-Fi.
 

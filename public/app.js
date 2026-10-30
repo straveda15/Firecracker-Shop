@@ -16,11 +16,17 @@ const t = k => I18N[S.lang][k] ?? I18N.en[k] ?? k;
 const pname = p => (S.lang === 'mr' && p.nameMr) ? p.nameMr : p.name;
 const shopTitle = () => S.lang === 'mr' && S.settings.shopNameMr ? S.settings.shopNameMr : (S.settings.shopName || t('appName'));
 
+const getAuth = () => { try { return localStorage.getItem('auth'); } catch { return null; } };
+const setAuth = v => { try { v ? localStorage.setItem('auth', v) : localStorage.removeItem('auth'); } catch { /* storage blocked */ } };
+const makeAuth = (u, p) => btoa(unescape(encodeURIComponent(u.toLowerCase().trim() + ':' + p)));
+
 async function api(method, url, body) {
-  const res = await fetch(url, { method, headers: body ? { 'Content-Type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined });
+  const headers = body ? { 'Content-Type': 'application/json' } : {}, auth = getAuth();
+  if (auth) headers.Authorization = 'Basic ' + auth;
+  const res = await fetch(url, { method, headers, body: body ? JSON.stringify(body) : undefined });
   const data = await res.json().catch(() => null);
   if (data === null) throw new Error('Server error: the API did not return data. Check the deployment and MongoDB settings.');
-  if (res.status === 401 && url !== '/api/login' && url !== '/api/me') { S.user = null; renderApp(); throw new Error(data.error || 'Login required'); }
+  if (res.status === 401 && url !== '/api/login' && url !== '/api/me') { S.user = null; setAuth(null); renderApp(); throw new Error(data.error || 'Login required'); }
   if (!res.ok) throw new Error(data.error || 'Error');
   return data;
 }
@@ -54,7 +60,7 @@ function renderApp() {
     <nav>${tabs.map(([k, i]) => `<button data-t="${k}" class="${S.tab === k ? 'on' : ''}"><span>${i}</span>${t(k)}</button>`).join('')}</nav>
     <main id="view"></main>`;
   $('#lg').onclick = () => setLang(S.lang === 'en' ? 'mr' : 'en');
-  $('#lo').onclick = guard(async () => { await api('POST', '/api/logout'); S.user = null; S.cart = []; renderApp(); });
+  $('#lo').onclick = guard(async () => { setAuth(null); S.user = null; S.cart = []; renderApp(); });
   app.querySelectorAll('nav button').forEach(b => b.onclick = () => { S.tab = b.dataset.t; renderApp(); });
   ({ billing: viewBilling, inventory: viewInventory, records: viewRecords, settings: viewSettings })[S.tab]($('#view'));
 }
@@ -70,6 +76,7 @@ function renderLogin(app) {
     e.preventDefault();
     const pw = $('#p').value;
     S.user = await api('POST', '/api/login', { username: $('#u').value, password: pw });
+    setAuth(makeAuth($('#u').value, pw));
     await loadBase(); renderApp();
     if (['admin123', 'staff123'].includes(pw)) toast(t('defaultPwWarn'), true);
   });
@@ -394,7 +401,8 @@ function viewSettings(v) {
   });
   $('#pf').onsubmit = guard(async e => {
     e.preventDefault();
-    await api('POST', '/api/password', Object.fromEntries(new FormData(e.target)));
+    const d = Object.fromEntries(new FormData(e.target));
+    await api('POST', '/api/password', d); setAuth(makeAuth(S.user.username, d.next));
     e.target.reset(); toast(t('saved'));
   });
 }
