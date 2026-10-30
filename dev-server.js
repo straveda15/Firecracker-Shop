@@ -3,7 +3,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 try { process.loadEnvFile(path.join(__dirname, '.env')); } catch { /* no .env file */ }
-const handler = require('./lib/app');
+const handler = require('./lib/handler');
 
 const PORT = process.env.PORT || 3000;
 const PUBLIC = path.join(__dirname, 'public');
