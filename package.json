@@ -2,7 +2,7 @@
   "name": "firecracker-shop-billing",
   "version": "1.0.0",
   "private": true,
-  "scripts": { "start": "node server.js" },
+  "scripts": { "start": "node dev-server.js" },
   "engines": { "node": ">=20.12" },
   "dependencies": { "mongodb": "^6.10.0" }
 }
