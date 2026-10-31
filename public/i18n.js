@@ -1,11 +1,12 @@
 const I18N = {
   en: {
+    authOnly: 'Authorised personnel only. Unauthorised access is prohibited.',
     thanks: 'Thank you! Visit again.', printHelp: 'Thermal printer: pair it with this device, tap Print, choose the printer and pick the 80 mm or 58 mm size that matches your roll.',
     inBill: 'in bill', add: 'Add', showAll: 'Show all', orders: 'All orders & invoices', orderDetails: 'Order details',
     productName: 'Product name', ph: 'Phone', sr: 'Sr.', desc: 'Description of Goods', invNo: 'Invoice No', invDate: 'Invoice Date', payMode: 'Payment Mode', billTo: 'Bill To',
     words: 'Amount in words', terms: 'Terms & Conditions', grand: 'Grand Total', custSign: 'Customer Signature', forShop: 'For', authSign: 'Authorised Signatory', computerGen: 'This is a computer generated invoice.',
     appName: 'Jaybhadra Fatake Wholesaler', login: 'Login', username: 'Username', password: 'Password', logout: 'Logout',
-    welcome: 'Sign in to continue', billing: 'New Bill', inventory: 'Inventory', records: 'Records', settings: 'Settings',
+    welcome: 'Sign in to access the billing system', billing: 'New Bill', inventory: 'Inventory', records: 'Records', settings: 'Settings',
     customer: 'Customer name', phone: 'Phone number', optional: 'optional', custDetails: 'Customer details',
     searchProduct: 'Search products…', allProducts: 'Products', tapToAdd: 'Tap a product to add it to the bill',
     currentBill: 'Current bill', emptyCart: 'No products added yet', product: 'Product', qty: 'Qty', rate: 'Rate', amount: 'Amount',
@@ -25,9 +26,11 @@ const I18N = {
     footer: 'Bill footer message', changePw: 'Change password', current: 'Current password', newPw: 'New password (min 6)',
     saved: 'Saved', done: 'Done', confirmDelete: 'Delete this product?', billCreated: 'Bill created', noRecords: 'No records for this period',
     savePw: 'Update password', shopDetails: 'Shop details', security: 'Account', items: 'items', defaultPwWarn: 'Please change the default password in Settings.',
-    enterName: 'Enter the customer name', pdfFail: 'PDF library not loaded (needs internet once). Use Print → Save as PDF.',
+    enterName: 'Enter the customer name', badName: 'Enter a valid name (letters only, min 2)', badPhone: 'Enter a valid 10-digit phone number',
+pdfFail: 'PDF library not loaded (needs internet once). Use Print → Save as PDF.',
   },
   mr: {
+    authOnly: 'फक्त अधिकृत व्यक्तींसाठी. अनधिकृत प्रवेश प्रतिबंधित आहे.',
     thanks: 'धन्यवाद! पुन्हा भेट द्या.', printHelp: 'थर्मल प्रिंटर: प्रिंटर या उपकरणाशी जोडा, प्रिंट दाबा, प्रिंटर निवडा आणि रोलनुसार 80 mm किंवा 58 mm निवडा.',
     inBill: 'बिलात', add: 'जोडा', showAll: 'सर्व दाखवा', orders: 'सर्व ऑर्डर व बिले', orderDetails: 'ऑर्डर तपशील',
     productName: 'उत्पादनाचे नाव', ph: 'फोन', sr: 'अ.क्र.', desc: 'मालाचे वर्णन', invNo: 'बिल क्र.', invDate: 'बिल दिनांक', payMode: 'पेमेंट प्रकार', billTo: 'ग्राहक',
@@ -53,6 +56,7 @@ const I18N = {
     footer: 'बिलाखालील संदेश', changePw: 'पासवर्ड बदला', current: 'सध्याचा पासवर्ड', newPw: 'नवीन पासवर्ड (किमान ६)',
     saved: 'जतन झाले', done: 'पूर्ण', confirmDelete: 'हे उत्पादन काढायचे?', billCreated: 'बिल तयार झाले', noRecords: 'या कालावधीत नोंदी नाहीत',
     savePw: 'पासवर्ड अपडेट करा', shopDetails: 'दुकानाची माहिती', security: 'खाते', items: 'वस्तू', defaultPwWarn: 'कृपया सेटिंग्जमध्ये डीफॉल्ट पासवर्ड बदला.',
-    enterName: 'ग्राहकाचे नाव टाका', pdfFail: 'पीडीएफ लायब्ररी लोड झाली नाही (एकदा इंटरनेट लागते). प्रिंट → पीडीएफ म्हणून जतन करा वापरा.',
+    enterName: 'ग्राहकाचे नाव टाका', badName: 'योग्य नाव टाका (फक्त अक्षरे, किमान २)', badPhone: 'योग्य १० अंकी फोन नंबर टाका',
+pdfFail: 'पीडीएफ लायब्ररी लोड झाली नाही (एकदा इंटरनेट लागते). प्रिंट → पीडीएफ म्हणून जतन करा वापरा.',
   },
 };

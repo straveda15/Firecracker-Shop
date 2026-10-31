@@ -5,7 +5,7 @@ const r2 = n => Math.round((n + Number.EPSILON) * 100) / 100;
 const money = n => (+n).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 const S = {
-  user: null, lang: localStorage.getItem('lang') || 'en', tab: 'billing',
+  user: null, lang: 'en', tab: 'billing',
   products: [], settings: {},
   cart: [], customer: '', phone: '', discType: 'amount', discVal: '', payment: 'cash', q: '',
   invQ: '', recDate: '',
@@ -73,8 +73,8 @@ function renderApp() {
   const tabBtns = TABS.map(([k, l]) => `<button data-t="${k}" class="${S.tab === k ? 'on' : ''}">${t(l)}</button>`).join('');
   app.innerHTML = `
     <aside class="side"><div class="brand">${esc(shopTitle())}</div><nav class="sidenav">${tabBtns}</nav>
-      <div class="sidefoot"><div class="who">${esc(S.user.username)}</div><button class="sbtn js-lang">${otherLang()}</button><button class="sbtn js-out">${t('logout')}</button></div></aside>
-    <header class="mtop"><div class="title">${esc(shopTitle())}</div><button class="hbtn js-lang">${otherLang()}</button><button class="hbtn js-out">${t('logout')}</button></header>
+      <div class="sidefoot"><div class="who">${esc(S.user.username)}</div><button class="sbtn js-out">${t('logout')}</button></div></aside>
+    <header class="mtop"><div class="title">${esc(shopTitle())}</div><button class="hbtn js-out">${t('logout')}</button></header>
     <nav class="bnav">${tabBtns}</nav>
     <main id="view"></main>`;
   app.querySelectorAll('.js-lang').forEach(b => b.onclick = () => setLang(S.lang === 'en' ? 'mr' : 'en'));
@@ -83,17 +83,31 @@ function renderApp() {
   ({ billing: viewBilling, inventory: viewInventory, records: viewRecords })[S.tab]($('#view'));
 }
 
+const PROFILES = [['admin1', 'Admin 1'], ['admin2', 'Admin 2']];
 function renderLogin(app) {
-  app.innerHTML = `<div class="login-wrap"><div class="login"><h2>${t('appName')}</h2><p>${t('welcome')}</p>
-    <form id="f"><label>${t('username')}</label><input id="u" autocomplete="username" autocapitalize="none" required>
-    <label>${t('password')}</label>${pwField('id="p" autocomplete="current-password" required')}
-    <div style="margin-top:20px"><button class="btn lg">${t('login')}</button></div></form></div></div>`;
+  let prof = (() => { try { return localStorage.getItem('profile'); } catch { return null; } })();
+  if (!PROFILES.some(p => p[0] === prof)) prof = PROFILES[0][0];
+  const name = S.settings.shopName || t('appName');
+  app.innerHTML = `<div class="login-wrap"><div class="login">
+    <div class="login-logo">${esc(name.trim().charAt(0).toUpperCase())}</div>
+    <h1>${esc(name)}</h1><p class="sub">${t('welcome')}</p>
+    <div class="profiles">${PROFILES.map(([k, l]) => `<button type="button" data-u="${k}">${l}</button>`).join('')}</div>
+    <form id="f" class="login-card"><label>${t('password')}</label>${pwField('id="p" autocomplete="current-password" required')}
+      <button class="btn lg">${t('login')} (<span id="who"></span>)</button></form>
+    <p class="login-note">${t('authOnly')}</p></div></div>`;
+  const pick = k => {
+    prof = k; try { localStorage.setItem('profile', k); } catch { /* storage blocked */ }
+    app.querySelectorAll('[data-u]').forEach(b => b.classList.toggle('on', b.dataset.u === k));
+    $('#who').textContent = PROFILES.find(p => p[0] === k)[1];
+  };
+  app.querySelectorAll('[data-u]').forEach(b => b.onclick = () => { pick(b.dataset.u); $('#p').focus(); });
+  pick(prof);
   $('#f').onsubmit = guard(async e => {
     e.preventDefault();
     const pw = $('#p').value;
     await busy(e, async () => {
-      const d = await api('POST', '/api/login', { username: $('#u').value, password: pw });
-      setAuth(makeAuth($('#u').value, pw));
+      const d = await api('POST', '/api/login', { username: prof, password: pw });
+      setAuth(makeAuth(prof, pw));
       applyBoot(d); renderApp();
     });
   });
@@ -114,7 +128,7 @@ function viewBilling(v) {
     <div class="bill-left">
       <h2 class="sh">${t('custDetails')}</h2>
       <div class="row"><div><label>${t('customer')} *</label><input id="cn" value="${esc(S.customer)}" maxlength="80" autocomplete="off"></div>
-      <div><label>${t('phone')} <em>(${t('optional')})</em></label><input id="cp" inputmode="tel" value="${esc(S.phone)}" maxlength="20" autocomplete="off"></div></div>
+      <div><label>${t('phone')} <em>(${t('optional')})</em></label><input id="cp" inputmode="numeric" pattern="[0-9]*" value="${esc(S.phone)}" maxlength="10" placeholder="10-digit" autocomplete="off"></div></div>
       <h2 class="sh" style="margin-top:28px">${t('allProducts')}</h2>
       <input id="ps" type="search" placeholder="${t('searchProduct')}" value="${esc(S.q)}" autocomplete="off">
       <div id="plist"></div>
@@ -128,7 +142,7 @@ function viewBilling(v) {
       <div style="text-align:center;margin-top:10px"><button class="link" id="clr">${t('clear')}</button></div>
     </aside></div><button id="cartbar" type="button"></button>`;
   $('#cn').oninput = e => S.customer = e.target.value;
-  $('#cp').oninput = e => S.phone = e.target.value;
+  $('#cp').oninput = e => { e.target.value = S.phone = e.target.value.replace(/\D/g, '').slice(0, 10); };
   $('#ps').oninput = e => { S.q = e.target.value; drawList(); };
   $('#dv').oninput = e => { S.discVal = e.target.value; drawTotals(); };
   $('#pay').onchange = e => S.payment = e.target.value;
@@ -203,7 +217,11 @@ function drawTotals() {
     `<div class="tot big"><span>${t('total')}</span><span>₹${money(c.total)}</span></div>`;
 }
 async function generate() {
-  if (!S.customer.trim()) { $('#cn').focus(); return toast(t('enterName'), true); }
+  const nm = S.customer.trim().replace(/\s+/g, ' ');
+  if (!nm) { $('#cn').focus(); return toast(t('enterName'), true); }
+  if (nm.length < 2 || !/^[\p{L}\p{M}][\p{L}\p{M} .'-]*$/u.test(nm)) { $('#cn').focus(); return toast(t('badName'), true); }
+  if (S.phone && !/^[6-9]\d{9}$/.test(S.phone)) { $('#cp').focus(); return toast(t('badPhone'), true); }
+  S.customer = nm;
   const btn = $('#gen'); btn.disabled = true;
   try {
     const inv = await api('POST', '/api/invoices', {
