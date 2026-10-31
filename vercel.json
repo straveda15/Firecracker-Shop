@@ -1,5 +1,6 @@
 {
   "framework": null,
+  "regions": ["bom1"],
   "buildCommand": null,
   "outputDirectory": "public",
   "functions": { "api/index.js": { "maxDuration": 15 } },

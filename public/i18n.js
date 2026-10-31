@@ -1,5 +1,7 @@
 const I18N = {
   en: {
+    thanks: 'Thank you! Visit again.', printHelp: 'Thermal printer: pair it with this device, tap Print, choose the printer and pick the 80 mm or 58 mm size that matches your roll.',
+    inBill: 'in bill', add: 'Add', showAll: 'Show all', orders: 'All orders & invoices', orderDetails: 'Order details',
     productName: 'Product name', ph: 'Phone', sr: 'Sr.', desc: 'Description of Goods', invNo: 'Invoice No', invDate: 'Invoice Date', payMode: 'Payment Mode', billTo: 'Bill To',
     words: 'Amount in words', terms: 'Terms & Conditions', grand: 'Grand Total', custSign: 'Customer Signature', forShop: 'For', authSign: 'Authorised Signatory', computerGen: 'This is a computer generated invoice.',
     appName: 'Jaybhadra Fatake Wholesaler', login: 'Login', username: 'Username', password: 'Password', logout: 'Logout',
@@ -26,6 +28,8 @@ const I18N = {
     enterName: 'Enter the customer name', pdfFail: 'PDF library not loaded (needs internet once). Use Print → Save as PDF.',
   },
   mr: {
+    thanks: 'धन्यवाद! पुन्हा भेट द्या.', printHelp: 'थर्मल प्रिंटर: प्रिंटर या उपकरणाशी जोडा, प्रिंट दाबा, प्रिंटर निवडा आणि रोलनुसार 80 mm किंवा 58 mm निवडा.',
+    inBill: 'बिलात', add: 'जोडा', showAll: 'सर्व दाखवा', orders: 'सर्व ऑर्डर व बिले', orderDetails: 'ऑर्डर तपशील',
     productName: 'उत्पादनाचे नाव', ph: 'फोन', sr: 'अ.क्र.', desc: 'मालाचे वर्णन', invNo: 'बिल क्र.', invDate: 'बिल दिनांक', payMode: 'पेमेंट प्रकार', billTo: 'ग्राहक',
     words: 'अक्षरी रक्कम (English)', terms: 'अटी व शर्ती', grand: 'एकूण देय', custSign: 'ग्राहकाची सही', forShop: 'साठी', authSign: 'अधिकृत स्वाक्षरी', computerGen: 'हे संगणकीय बिल आहे.',
     appName: 'जयभद्र फटाके होलसेलर', login: 'लॉगिन', username: 'वापरकर्ता नाव', password: 'पासवर्ड', logout: 'बाहेर पडा',
