@@ -344,3 +344,7 @@ textarea:focus{outline:3px solid var(--ring);border-color:var(--brand)}
 .addrow{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;margin-top:12px;padding:11px;border:1.5px dashed #bae6fd;background:#f0f9ff;color:var(--brand-d);border-radius:12px;cursor:pointer;font-weight:500}
 .addrow:hover{background:var(--brand-l)}
 @media(max-width:859px){.lrow{flex-wrap:wrap}.lf{flex-basis:100%}.lc{width:100%}.lc .pamt{margin-left:auto}}
+
+/* lock the page behind an open dialog (invoice view, forms, confirmations) */
+body:has(.modal){overflow:hidden}
+.modal{overscroll-behavior:contain}
