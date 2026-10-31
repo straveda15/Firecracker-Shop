@@ -5,14 +5,29 @@ const r2 = n => Math.round((n + Number.EPSILON) * 100) / 100;
 const money = n => (+n).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 const S = {
-  user: null, lang: 'en', tab: 'dashboard',
+  user: null, lang: (() => { try { return localStorage.getItem('lang') === 'mr' ? 'mr' : 'en'; } catch { return 'en'; } })(), tab: 'dashboard',
   products: [], settings: {},
-  cart: [], customer: '', phone: '', discType: 'amount', discVal: '', payment: 'cash', q: '',
-  invQ: '', recDate: '',
+  cart: [], pq: {}, customer: '', phone: '', discType: 'amount', discVal: '', payment: 'cash', q: '',
+  invQ: '', invF: 'all', recDate: '',
 };
 const t = k => I18N[S.lang][k] ?? I18N.en[k] ?? k;
-const pname = p => p.name;
-const shopTitle = () => S.settings.shopName || t('appName');
+const pname = p => (S.lang === 'mr' && p.nameMr) || p.name; // products and invoice lines both carry name + nameMr
+const shopTitle = () => (S.lang === 'mr' ? S.settings.shopNameMr : S.settings.shopName) || t('appName');
+
+const ICONS = {
+  receipt: '<path d="M5 3h14v18l-3-2-2 2-2-2-2 2-2-2-3 2z"/><path d="M9 8h6M9 12h6"/>',
+  rupee: '<path d="M6 4h12M6 9h12M9 4h1c3.5 0 6 2 6 5s-2.5 5-6 5H9l7 6"/>',
+  trend: '<path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/>',
+  box: '<path d="M21 8l-9-5-9 5 9 5z"/><path d="M3 8v8l9 5 9-5V8M12 13v8"/>',
+  layers: '<path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/>',
+  alert: '<path d="M12 3l10 18H2z"/><path d="M12 10v5M12 18v.01"/>',
+  x: '<circle cx="12" cy="12" r="9"/><path d="M9 9l6 6M15 9l-6 6"/>',
+  trash: '<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/>',
+  edit: '<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13 7l4 4"/>',
+  search: '<circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/>',
+  logout: '<path d="M9 4H5v16h4M16 8l4 4-4 4M20 12H9"/>',
+};
+const ico = (n, s = 20) => `<svg viewBox="0 0 24 24" width="${s}" height="${s}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[n]}</svg>`;
 
 const getAuth = () => { try { return localStorage.getItem('auth'); } catch { return null; } };
 const setAuth = v => { try { v ? localStorage.setItem('auth', v) : localStorage.removeItem('auth'); } catch { /* storage blocked */ } };
@@ -53,8 +68,9 @@ const busy = async (e, fn) => {
   b.disabled = true; b.textContent = '...';
   try { await fn(); } finally { b.disabled = false; b.textContent = label; }
 };
-function setLang(l) { S.lang = l; localStorage.setItem('lang', l); document.documentElement.lang = l; renderApp(); }
-const otherLang = () => S.lang === 'en' ? 'मराठी' : 'English';
+function setLang(l) { S.lang = l; try { localStorage.setItem('lang', l); } catch { /* storage blocked */ } document.documentElement.lang = l; renderApp(); }
+const langSwitch = () => `<div class="lang" role="group" aria-label="${t('lang')}">${[['en', 'EN'], ['mr', 'मराठी']].map(([k, l]) => `<button type="button" data-lang="${k}" class="${S.lang === k ? 'on' : ''}">${l}</button>`).join('')}</div>`;
+const bindLang = root => root.querySelectorAll('[data-lang]').forEach(b => b.onclick = () => { if (b.dataset.lang !== S.lang) setLang(b.dataset.lang); });
 
 const EYE = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>';
 const EYE_OFF = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.9 10.9 0 0 1 12 19c-7 0-11-7-11-7a19.8 19.8 0 0 1 5.06-5.94M9.9 4.24A10.9 10.9 0 0 1 12 5c7 0 11 7 11 7a19.9 19.9 0 0 1-3.17 4.19M14.12 14.12a3 3 0 1 1-4.24-4.24M1 1l22 22"/></svg>';
@@ -78,8 +94,9 @@ function renderApp() {
   app.innerHTML = `
     <header class="top"><div class="brand"><span class="brand-ico">${CRACKER}</span><span class="brand-name">${esc(shopTitle())}</span></div>
       <nav class="topnav">${tabBtns}</nav>
-      <div class="topr"><span class="who">${esc(S.user.username)}</span><button class="sbtn js-out">${t('logout')}</button></div></header>
+      <div class="topr">${langSwitch()}<span class="who">${esc(S.user.username)}</span><button class="sbtn js-out" title="${t('logout')}" aria-label="${t('logout')}">${ico('logout', 17)}<span class="lt">${t('logout')}</span></button></div></header>
     <main id="view"></main>`;
+  bindLang(app);
   app.querySelectorAll('.js-out').forEach(b => b.onclick = () => { setAuth(null); S.user = null; S.cart = []; renderApp(); });
   app.querySelectorAll('[data-t]').forEach(b => b.onclick = () => { S.tab = b.dataset.t; renderApp(); });
   ({ dashboard: viewDashboard, billing: viewBilling, inventory: viewInventory, records: viewRecords })[S.tab]($('#view'));
@@ -87,26 +104,41 @@ function renderApp() {
 
 // ---------------- dashboard ----------------
 const inr = n => Math.round(n).toLocaleString('en-IN');
+const locale = () => S.lang === 'mr' ? 'mr-IN-u-nu-latn' : 'en-IN'; // Marathi words, Western digits (matches the rest of the UI)
+const kcard = (tone, icon, label, val, sub) => `<div class="kcard"><div class="kh"><small>${label}</small><span class="kico ${tone}">${ico(icon)}</span></div><b>${val}</b><span class="ksub">${sub || ''}</span></div>`;
+const initial = s => ([...String(s || '?').trim()][0] || '?').toUpperCase();
 async function viewDashboard(v) {
-  v.innerHTML = `<h1 class="ptitle">${t('dashboard')}</h1><div class="empty">...</div>`;
+  const dateStr = new Date().toLocaleDateString(locale(), { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Kolkata' });
+  const head = `<div class="pagehead"><div><h1 class="ptitle">${t('dashboard')}</h1><p class="psub">${dateStr}</p></div></div>`;
+  v.innerHTML = head + `<div class="empty">...</div>`;
   const d = await api('GET', '/api/dashboard').catch(e => { toast(e.message, true); return null; });
   if (!d || S.tab !== 'dashboard') return;
   const max = Math.max(1, ...d.days.map(x => x.sales));
-  const wd = s => new Date(s + 'T00:00:00Z').toLocaleDateString(S.lang === 'mr' ? 'mr-IN' : 'en-IN', { weekday: 'short', timeZone: 'UTC' });
-  const card = (k, val, sub) => `<div class="stat"><small>${t(k)}</small><b>${val}</b>${sub ? `<span class="mute">${sub}</span>` : ''}</div>`;
+  const wd = s => new Date(s + 'T00:00:00Z').toLocaleDateString(locale(), { weekday: 'short', timeZone: 'UTC' });
+  const weekSales = d.days.reduce((a, x) => a + x.sales, 0), weekOrders = d.days.reduce((a, x) => a + x.orders, 0);
   const none = `<div class="empty">${t('noActivity')}</div>`;
-  v.innerHTML = `<h1 class="ptitle">${t('dashboard')}</h1>
-    <div class="stats">${card('todayOrders', d.today.orders)}${card('todaySales', '₹' + inr(d.today.sales))}
-      ${card('totalSales', '₹' + inr(d.totalSales), `${d.totalOrders} ${t('ordersWord')}`)}${card('totalStock', d.totalStock, `${d.totalProducts} ${t('totalProducts').toLowerCase()}`)}</div>
-    <h2 class="sh">${t('last7')}</h2>
-    <div class="bars">${d.days.map(x => `<div class="bar" title="${dmy(x.date)}: ${x.orders} ${t('ordersWord')}">
-      <span class="bv">₹${money(x.sales).replace(/\.00$/, '')}</span><div class="bf" style="height:${Math.max(3, Math.round(x.sales / max * 100))}%"></div>
-      <span class="bl2">${wd(x.date)}</span><span class="bo mute">${x.orders} ${t('ordersWord')}</span></div>`).join('')}</div>
+  v.innerHTML = head + `
+    <div class="kcards">
+      ${kcard('sky', 'receipt', t('todayOrders'), d.today.orders, dmy(d.today.date))}
+      ${kcard('green', 'rupee', t('todaySales'), '₹' + inr(d.today.sales), d.today.orders ? `${t('avgOrder')} ₹${inr(d.today.sales / d.today.orders)}` : '')}
+      ${kcard('violet', 'trend', t('totalSales'), '₹' + inr(d.totalSales), `${d.totalOrders} ${t('ordersWord')}`)}
+      ${kcard('amber', 'box', t('totalStock'), d.totalStock, `${d.totalProducts} ${t('totalProducts').toLowerCase()}`)}
+    </div>
+    <section class="card chart">
+      <div class="chead"><div><h2 class="ct">${t('last7')}</h2><p class="mute csub">${weekOrders ? `₹${inr(weekSales)} · ${weekOrders} ${t('ordersWord')}` : t('noOrdersWeek')}</p></div></div>
+      <div class="plot"><div class="grid"><i></i><i></i><i></i><i></i></div>
+        <div class="cols">${d.days.map((x, n) => {
+          const p = Math.max(2, Math.round(x.sales / max * 86));
+          return `<div class="col ${n === d.days.length - 1 ? 'now' : ''}" title="${dmy(x.date)}: ₹${money(x.sales)} · ${x.orders} ${t('ordersWord')}">
+            <div class="track">${x.sales ? `<span class="bv" style="bottom:calc(${p}% + 6px)">₹${inr(x.sales)}</span><div class="bf" style="height:${p}%"></div>` : '<div class="bf zero"></div>'}</div>
+            <span class="bl2">${wd(x.date)}</span><span class="bo">${x.orders} ${t('ordersWord')}</span></div>`;
+        }).join('')}</div></div>
+    </section>
     <div class="dash-cols">
-      <section><h2 class="sh">${t('recentProducts')}</h2>${d.products.length ? `<ul class="rlist">${d.products.map(p =>
-        `<li><div><b>${esc(p.name)}</b><div class="mute">${esc(p.customer)} · ${dmy(p.date)}</div></div><span class="pill">&times; ${p.qty}</span></li>`).join('')}</ul>` : none}</section>
-      <section><h2 class="sh">${t('recentCustomers')}</h2>${d.customers.length ? `<ul class="rlist">${d.customers.map(c =>
-        `<li><div><b>${esc(c.customer)}</b><div class="mute">${c.phone ? esc(c.phone) + ' · ' : ''}${dmy(c.date)} · ${c.no}</div></div><b>₹${money(c.total)}</b></li>`).join('')}</ul>` : none}</section>
+      <section class="card"><div class="chead"><h2 class="ct">${t('recentProducts')}</h2></div>${d.products.length ? `<ul class="rlist">${d.products.map(p =>
+        `<li><span class="av sky">${ico('box', 18)}</span><div class="rl"><b>${esc(pname(p))}</b><div class="mute">${esc(p.customer)} · ${dmy(p.date)}</div></div><span class="pill">&times; ${p.qty}</span></li>`).join('')}</ul>` : none}</section>
+      <section class="card"><div class="chead"><h2 class="ct">${t('recentCustomers')}</h2></div>${d.customers.length ? `<ul class="rlist">${d.customers.map(c =>
+        `<li><span class="av green">${esc(initial(c.customer))}</span><div class="rl"><b>${esc(c.customer)}</b><div class="mute">${c.phone ? esc(c.phone) + ' · ' : ''}${dmy(c.date)} · ${c.no}</div></div><b class="ramt">₹${money(c.total)}</b></li>`).join('')}</ul>` : none}</section>
     </div>`;
 }
 
@@ -114,8 +146,8 @@ const PROFILES = [['admin1', 'Admin 1'], ['admin2', 'Admin 2']];
 function renderLogin(app) {
   let prof = (() => { try { return localStorage.getItem('profile'); } catch { return null; } })();
   if (!PROFILES.some(p => p[0] === prof)) prof = PROFILES[0][0];
-  const name = S.settings.shopName || t('appName');
-  app.innerHTML = `<div class="login-wrap"><div class="login">
+  const name = shopTitle();
+  app.innerHTML = `<div class="login-wrap"><div class="login-lang">${langSwitch()}</div><div class="login">
     <div class="login-logo">${CRACKER}</div>
     <h1>${esc(name)}</h1><p class="sub">${t('welcome')}</p>
     <div class="profiles">${PROFILES.map(([k, l]) => `<button type="button" data-u="${k}">${l}</button>`).join('')}</div>
@@ -127,6 +159,7 @@ function renderLogin(app) {
     app.querySelectorAll('[data-u]').forEach(b => b.classList.toggle('on', b.dataset.u === k));
     $('#who').textContent = PROFILES.find(p => p[0] === k)[1];
   };
+  bindLang(app);
   app.querySelectorAll('[data-u]').forEach(b => b.onclick = () => { pick(b.dataset.u); $('#p').focus(); });
   pick(prof);
   $('#f').onsubmit = guard(async e => {
@@ -148,106 +181,132 @@ function calc() {
   const raw = r2(subtotal - discount), total = Math.round(raw);
   return { subtotal, discount, roundOff: r2(total - raw), total };
 }
+const prod = id => S.products.find(x => x.id === +id);
+const stepper = (k, id, val, max) => `<div class="stepper"><button type="button" data-${k}m="${id}" aria-label="&minus;">&minus;</button><input type="number" min="1" max="${max}" step="1" inputmode="numeric" data-${k}q="${id}" value="${val}" aria-label="${t('qty')}"><button type="button" data-${k}p="${id}" aria-label="+">+</button></div>`;
 
 function viewBilling(v) {
   v.innerHTML = `<h1 class="ptitle">${t('billing')}</h1>
   <div class="bill-cols">
     <div class="bill-left">
-      <h2 class="sh">${t('custDetails')}</h2>
-      <div class="row"><div><label>${t('customer')} *</label><input id="cn" value="${esc(S.customer)}" maxlength="80" autocomplete="off"></div>
-      <div><label>${t('phone')} <em>(${t('optional')})</em></label><input id="cp" inputmode="numeric" pattern="[0-9]*" value="${esc(S.phone)}" maxlength="10" placeholder="10-digit" autocomplete="off"></div></div>
-      <h2 class="sh" style="margin-top:28px">${t('allProducts')}</h2>
-      <input id="ps" type="search" placeholder="${t('searchProduct')}" value="${esc(S.q)}" autocomplete="off">
-      <div id="plist"></div>
+      <section class="card"><h2 class="ct">${t('custDetails')}</h2>
+        <div class="row"><div><label>${t('customer')} *</label><input id="cn" value="${esc(S.customer)}" maxlength="80" autocomplete="off"></div>
+        <div><label>${t('phone')} <em>(${t('optional')})</em></label><input id="cp" inputmode="numeric" pattern="[0-9]*" value="${esc(S.phone)}" maxlength="10" placeholder="${t('phHint')}" autocomplete="off"></div></div></section>
+      <section class="card"><div class="chead"><div><h2 class="ct">${t('allProducts')}</h2><p class="mute csub">${t('tapToAdd')}</p></div></div>
+        <div class="sbox">${ico('search', 18)}<input id="ps" type="search" placeholder="${t('searchProduct')}" value="${esc(S.q)}" autocomplete="off"></div>
+        <div id="plist"></div></section>
+      <section class="card"><h2 class="ct">${t('payDisc')}</h2>
+        <div class="row"><div><label>${t('discountOpt')}</label>
+          <div class="disc"><input id="dv" type="number" min="0" step="any" inputmode="decimal" value="${esc(S.discVal)}">
+          <div class="seg"><button type="button" data-d="amount">₹</button><button type="button" data-d="percent">%</button></div></div></div>
+          <div><label>${t('payment')}</label><select id="pay">${['cash', 'upi', 'card'].map(p => `<option value="${p}" ${S.payment === p ? 'selected' : ''}>${t(p)}</option>`).join('')}</select></div></div></section>
     </div>
-    <aside class="bill-right billside"><h2 class="sh">${t('currentBill')}</h2><div id="cart"></div><div id="tot" class="sums"></div>
-      <div class="row" style="margin-top:16px"><div><label>${t('discountOpt')}</label>
-        <div class="disc"><input id="dv" type="number" min="0" step="any" inputmode="decimal" value="${esc(S.discVal)}">
-        <div class="seg"><button type="button" data-d="amount">₹</button><button type="button" data-d="percent">%</button></div></div></div>
-        <div><label>${t('payment')}</label><select id="pay">${['cash', 'upi', 'card'].map(p => `<option value="${p}" ${S.payment === p ? 'selected' : ''}>${t(p)}</option>`).join('')}</select></div></div>
-      <div style="margin-top:18px"><button class="btn lg" id="gen">${t('generate')}</button></div>
-      <div style="text-align:center;margin-top:10px"><button class="link" id="clr">${t('clear')}</button></div>
+    <aside class="bill-right billside card">
+      <div class="chead"><h2 class="ct">${t('billPreview')}</h2><div class="seg fmt sm">${[['a4', 'A4'], ['80', '80 mm'], ['58', '58 mm']].map(([k, l]) => `<button type="button" data-pf="${k}">${l}</button>`).join('')}</div></div>
+      <div class="pvwrap"><div id="pv"></div></div>
+      <div id="tot" class="sums"></div>
+      <button class="btn lg" id="gen">${t('generate')}</button>
+      <div style="text-align:center;margin-top:8px"><button class="link" id="clr">${t('clear')}</button></div>
     </aside></div><button id="cartbar" type="button"></button>`;
-  $('#cn').oninput = e => { e.target.value = S.customer = e.target.value.replace(/[^\p{L}\p{M} .'-]/gu, ''); };
-  $('#cp').oninput = e => { e.target.value = S.phone = e.target.value.replace(/\D/g, '').slice(0, 10); };
+  $('#cn').oninput = e => { e.target.value = S.customer = e.target.value.replace(/[^\p{L}\p{M} .'-]/gu, ''); drawPreview(); };
+  $('#cp').oninput = e => { e.target.value = S.phone = e.target.value.replace(/\D/g, '').slice(0, 10); drawPreview(); };
   $('#ps').oninput = e => { S.q = e.target.value; drawList(); };
   $('#dv').oninput = e => { S.discVal = e.target.value; drawTotals(); };
-  $('#pay').onchange = e => S.payment = e.target.value;
+  $('#pay').onchange = e => { S.payment = e.target.value; drawPreview(); };
   v.querySelectorAll('[data-d]').forEach(b => b.onclick = () => { S.discType = b.dataset.d; drawSeg(); drawTotals(); });
+  v.querySelectorAll('[data-pf]').forEach(b => b.onclick = () => { setFmt(b.dataset.pf); drawPreview(); });
   $('#clr').onclick = () => { resetBill(); viewBilling(v); };
   $('#gen').onclick = guard(generate);
-  drawSeg(); drawList(); drawCart(); drawTotals();
+  drawSeg(); drawList(); drawTotals();
 }
-function resetBill() { Object.assign(S, { cart: [], customer: '', phone: '', discVal: '', discType: 'amount', payment: 'cash', q: '' }); }
+function resetBill() { Object.assign(S, { cart: [], pq: {}, customer: '', phone: '', discVal: '', discType: 'amount', payment: 'cash', q: '' }); }
 function drawSeg() { document.querySelectorAll('[data-d]').forEach(b => b.classList.toggle('on', b.dataset.d === S.discType)); }
 
 function drawList() {
   const el = $('#plist'); if (!el) return;
   if (!S.products.length) { el.innerHTML = `<div class="empty">${t('noProducts')}</div>`; return; }
   const q = S.q.trim().toLowerCase();
-  const list = S.products.filter(p => !q || p.name.toLowerCase().includes(q));
+  const list = S.products.filter(p => !q || (p.name + ' ' + (p.nameMr || '')).toLowerCase().includes(q));
+  if (!list.length) { el.innerHTML = `<div class="empty">${t('noMatch')}</div>`; return; }
   el.innerHTML = `<div class="plist">${list.map(p => {
-    const inBill = S.cart.find(i => i.productId === p.id);
-    return `<div class="prow ${p.stock <= 0 ? 'off' : ''}"><div class="pn"><b>${esc(pname(p))}</b>${inBill ? `<span class="inb">${inBill.qty} ${t('inBill')}</span>` : ''}</div>
-      <div class="pp">₹${money(p.price)}${p.unit ? `<small> / ${esc(p.unit)}</small>` : ''}</div>
-      <div class="ps">${p.stock <= 0 ? `<span class="badge">${t('outOfStock')}</span>` : `${p.stock} ${t('inStock')}`}</div>
-      <button class="btn sm sec" data-id="${p.id}" ${p.stock <= 0 ? 'disabled' : ''}>${t('add')}</button></div>`;
+    const c = S.cart.find(i => i.productId === p.id), out = p.stock <= 0;
+    const info = `<div class="pi"><b>${esc(pname(p))}</b><span class="pmeta">₹${money(p.price)}${p.unit ? ` / ${esc(p.unit)}` : ''} &middot; ${out ? `<span class="badge">${t('outOfStock')}</span>` : `${p.stock} ${t('inStock')}`}</span></div>`;
+    if (c) return `<div class="prow in">${info}<div class="pc">
+      <div class="rate-box" title="${t('rate')}">₹<input type="number" min="0" step="any" inputmode="decimal" data-cr="${p.id}" value="${c.rate}" aria-label="${t('rate')}"></div>
+      ${stepper('c', p.id, c.qty, p.stock)}<span class="pamt" id="amt${p.id}">₹${money(c.qty * c.rate)}</span>
+      <button type="button" class="ib del" data-cx="${p.id}" title="${t('removeItem')}" aria-label="${t('removeItem')}">${ico('trash', 17)}</button></div></div>`;
+    return `<div class="prow ${out ? 'off' : ''}">${info}<div class="pc">${out ? '' : stepper('a', p.id, S.pq[p.id] || 1, p.stock)}
+      <button type="button" class="btn sm" data-add="${p.id}" ${out ? 'disabled' : ''}>+ ${t('add')}</button></div></div>`;
   }).join('')}</div>`;
-  el.querySelectorAll('[data-id]').forEach(d => d.onclick = () => changeQty(+d.dataset.id, 1, true));
+
+  const setPq = (id, n, inp) => { n = Math.max(1, Math.min(prod(id).stock, Math.floor(n) || 1)); S.pq[id] = n; inp.value = n; };
+  el.querySelectorAll('[data-add]').forEach(b => b.onclick = () => {
+    const id = +b.dataset.add, n = Math.min(S.pq[id] || 1, prod(id).stock); delete S.pq[id]; changeQty(id, n, true);
+  });
+  el.querySelectorAll('[data-aq]').forEach(inp => {
+    const id = +inp.dataset.aq;
+    inp.oninput = () => { let n = Math.floor(Number(inp.value)); if (n > prod(id).stock) { n = prod(id).stock; inp.value = n; toast(`${pname(prod(id))}: ${t('stock')} ${n}`, true); } S.pq[id] = n >= 1 ? n : 0; };
+    inp.onchange = () => setPq(id, S.pq[id], inp);
+    inp.onkeydown = e => { if (e.key === 'Enter') { setPq(id, inp.value, inp); inp.closest('.pc').querySelector('[data-add]').click(); } };
+  });
+  el.querySelectorAll('[data-am]').forEach(b => b.onclick = () => { const id = +b.dataset.am; setPq(id, (S.pq[id] || 1) - 1, b.nextElementSibling); });
+  el.querySelectorAll('[data-ap]').forEach(b => b.onclick = () => { const id = +b.dataset.ap; setPq(id, (S.pq[id] || 1) + 1, b.previousElementSibling); });
+
+  el.querySelectorAll('[data-cm]').forEach(b => b.onclick = () => changeQty(+b.dataset.cm, -1));
+  el.querySelectorAll('[data-cp]').forEach(b => b.onclick = () => changeQty(+b.dataset.cp, 1));
+  el.querySelectorAll('[data-cx]').forEach(b => b.onclick = () => { S.cart = S.cart.filter(x => x.productId !== +b.dataset.cx); drawList(); drawTotals(); });
+  el.querySelectorAll('[data-cq]').forEach(inp => {
+    const id = +inp.dataset.cq, i = S.cart.find(x => x.productId === id), p = prod(id);
+    inp.oninput = () => {
+      let n = Math.floor(Number(inp.value)) || 0;
+      if (n > p.stock) { n = p.stock; inp.value = n; toast(`${pname(p)}: ${t('stock')} ${p.stock}`, true); }
+      i.qty = n; setAmt(id, i); drawTotals();
+    };
+    inp.onchange = () => { if (i.qty < 1) changeQty(id, -1); else drawList(); }; // drop empty / zero lines on blur
+  });
+  el.querySelectorAll('[data-cr]').forEach(inp => {
+    const id = +inp.dataset.cr, i = S.cart.find(x => x.productId === id);
+    inp.oninput = () => { i.rate = Math.max(0, Number(inp.value) || 0); setAmt(id, i); drawTotals(); };
+  });
 }
+function setAmt(id, i) { const a = $('#amt' + id); if (a) a.textContent = '₹' + money(i.qty * i.rate); }
 function changeQty(id, delta, add) {
-  const p = S.products.find(x => x.id === id); if (!p) return;
+  const p = prod(id); if (!p) return;
   let i = S.cart.find(x => x.productId === id);
   if (!i) { if (!add || p.stock <= 0) return; i = { productId: id, qty: 0, rate: p.price }; S.cart.push(i); }
   const n = i.qty + delta;
-  if (n > p.stock) return toast(`${pname(p)}: ${t('stock')} ${p.stock}`, true);
+  if (n > p.stock) { if (!i.qty) S.cart = S.cart.filter(x => x !== i); return toast(`${pname(p)}: ${t('stock')} ${p.stock}`, true); }
   if (n < 1) S.cart = S.cart.filter(x => x !== i); else i.qty = n;
-  drawList(); drawCart(); drawTotals();
+  drawList(); drawTotals();
 }
-function drawCart() {
-  const el = $('#cart'); if (!el) return;
-  if (!S.cart.length) { el.innerHTML = `<div class="empty">${t('emptyCart')}</div>`; return; }
-  el.innerHTML = S.cart.map((i, n) => {
-    const p = S.products.find(x => x.id === i.productId);
-    return `<div class="bl"><div class="bl-top"><b>${esc(pname(p))}</b><button class="xbtn" data-x="${i.productId}" aria-label="remove">&times;</button></div>
-      <div class="bl-calc">
-        <div class="rate-box">₹<input type="number" min="0" step="any" inputmode="decimal" data-n="${n}" data-f="rate" value="${i.rate}"></div>
-        <span class="op">&times;</span>
-        <div class="stepper"><button data-m="${i.productId}">&minus;</button><input type="number" min="1" max="${p.stock}" step="1" inputmode="numeric" data-n="${n}" data-f="qty" value="${i.qty}"><button data-p="${i.productId}">+</button></div>
-        <span class="op">=</span><span class="bl-amt" id="amt${n}">₹${money(i.qty * i.rate)}</span></div></div>`;
-  }).join('');
-  el.querySelectorAll('input[data-n]').forEach(inp => inp.oninput = () => {
-    const i = S.cart[+inp.dataset.n], p = S.products.find(x => x.id === i.productId);
-    let val = Number(inp.value);
-    if (inp.dataset.f === 'qty') {
-      val = Math.floor(val) || 0;
-      if (val > p.stock) { val = p.stock; inp.value = val; toast(`${pname(p)}: ${t('stock')} ${p.stock}`, true); }
-    }
-    i[inp.dataset.f] = val;
-    $('#amt' + inp.dataset.n).textContent = '₹' + money(i.qty * i.rate); drawTotals();
-  });
-  el.querySelectorAll('input[data-f=qty]').forEach(inp => inp.onchange = () => { // drop empty / zero lines on blur
-    const i = S.cart[+inp.dataset.n]; if (i.qty < 1) changeQty(i.productId, -1); else drawList();
-  });
-  el.querySelectorAll('[data-m]').forEach(b => b.onclick = () => changeQty(+b.dataset.m, -1));
-  el.querySelectorAll('[data-p]').forEach(b => b.onclick = () => changeQty(+b.dataset.p, 1));
-  el.querySelectorAll('[data-x]').forEach(b => b.onclick = () => { S.cart = S.cart.filter(x => x.productId !== +b.dataset.x); drawList(); drawCart(); drawTotals(); });
+// the bill as it would be saved, built from the current cart (shown live in the preview)
+function draftInvoice() {
+  const c = calc(), now = new Date();
+  return { no: t('draft'), date: now.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }), createdAt: now.toISOString(), status: 'active',
+    customer: S.customer.trim() || '—', phone: S.phone, payment: S.payment, discountType: S.discType, discountValue: Number(S.discVal) || 0,
+    subtotal: c.subtotal, discount: c.discount, roundOff: c.roundOff, total: c.total,
+    items: S.cart.map(i => { const p = prod(i.productId); return { productId: i.productId, name: p.name, nameMr: p.nameMr || '', qty: i.qty, rate: i.rate, amount: r2(i.qty * i.rate) }; }) };
+}
+function drawPreview() {
+  const el = $('#pv'); if (!el) return;
+  el.innerHTML = docHTML(draftInvoice());
+  document.querySelectorAll('[data-pf]').forEach(b => b.classList.toggle('on', b.dataset.pf === getFmt()));
+  const node = el.firstElementChild;
+  node.style.zoom = Math.min(1, el.clientWidth / node.offsetWidth); // scale the paper down to the panel width
 }
 function drawTotals() {
   const el = $('#tot'); if (!el) return;
-  const bar = $('#cartbar'), n = S.cart.reduce((x, i) => x + i.qty, 0);
-  if (bar) { bar.className = n ? 'on' : ''; bar.innerHTML = `<span>${n} ${t('items')} &middot; <b>₹${money(calc().total)}</b></span><span>${t('currentBill')} &rsaquo;</span>`; bar.onclick = () => $('.billside').scrollIntoView({ behavior: 'smooth', block: 'start' }); }
-  const c = calc(), line = (k, val) => `<div class="tot"><span>${k}</span><span>${val}</span></div>`;
-  el.innerHTML = line(`${t('subtotal')} (${n} ${t('items')})`, '₹' + money(c.subtotal)) +
-    (c.discount ? line(t('discount') + (S.discType === 'percent' ? ` (${Number(S.discVal)}%)` : ''), '&minus; ₹' + money(c.discount)) : '') +
-    (c.roundOff ? line(t('roundOff'), (c.roundOff > 0 ? '+ ' : '&minus; ') + '₹' + money(Math.abs(c.roundOff))) : '') +
-    `<div class="tot big"><span>${t('total')}</span><span>₹${money(c.total)}</span></div>`;
+  const bar = $('#cartbar'), n = S.cart.reduce((x, i) => x + i.qty, 0), c = calc();
+  if (bar) { bar.className = n ? 'on' : ''; bar.innerHTML = `<span>${n} ${t('items')} &middot; <b>₹${money(c.total)}</b></span><span>${t('billPreview')} &rsaquo;</span>`; bar.onclick = () => $('.billside').scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+  el.innerHTML = (S.cart.length ? '' : `<p class="mute pvhint">${t('previewHint')}</p>`) +
+    `<div class="tot big"><span>${t('total')} <small>(${n} ${t('items')})</small></span><span>₹${money(c.total)}</span></div>`;
+  drawPreview();
 }
 async function generate() {
   const nm = S.customer.trim().replace(/\s+/g, ' ');
   if (!nm) { $('#cn').focus(); return toast(t('enterName'), true); }
   if (nm.length < 2 || !/^[\p{L}\p{M}][\p{L}\p{M} .'-]*$/u.test(nm)) { $('#cn').focus(); return toast(t('badName'), true); }
   if (S.phone && !/^[6-9]\d{9}$/.test(S.phone)) { $('#cp').focus(); return toast(t('badPhone'), true); }
+  if (!S.cart.length) return toast(t('emptyCart'), true);
   S.customer = nm;
   const btn = $('#gen'); btn.disabled = true;
   try {
@@ -266,29 +325,47 @@ async function generate() {
 }
 
 // ---------------- inventory ----------------
+const stockState = p => p.stock <= 0 ? 'out' : p.stock <= p.lowStock ? 'low' : 'ok';
 function viewInventory(v) {
-  const P = S.products;
-  const low = P.filter(p => p.stock <= p.lowStock).length, value = P.reduce((a, p) => a + p.stock * p.price, 0);
+  const P = S.products, low = P.filter(p => stockState(p) === 'low').length, out = P.filter(p => stockState(p) === 'out').length;
+  const units = P.reduce((a, p) => a + p.stock, 0), value = P.reduce((a, p) => a + p.stock * p.price, 0);
+  const chips = [['all', t('all'), P.length], ['low', t('low'), low], ['out', t('outOfStock'), out]];
   v.innerHTML = `<div class="pagehead"><h1 class="ptitle">${t('inventory')}</h1><button class="btn" id="add">+ ${t('addProduct')}</button></div>
-    <div class="kpis"><div class="kpi"><small>${t('totalProducts')}</small><b>${P.length}</b></div>
-      <div class="kpi"><small>${t('lowItems')}</small><b>${low}</b></div>
-      <div class="kpi"><small>${t('stockValue')}</small><b>₹${money(value)}</b></div></div>
-    <input id="iq" type="search" placeholder="${t('searchInv')}" value="${esc(S.invQ)}" style="max-width:420px"><div id="itab"></div>`;
+    <div class="kcards c5">
+      ${kcard('sky', 'box', t('totalProducts'), P.length, t('productsSub'))}
+      ${kcard('violet', 'layers', t('unitsInStock'), units.toLocaleString('en-IN'), '')}
+      ${kcard('green', 'rupee', t('stockValue'), '₹' + inr(value), t('valueSub'))}
+      ${kcard('amber', 'alert', t('lowItems'), low, low ? t('needRestock') : '')}
+      ${kcard('red', 'x', t('outItems'), out, out ? t('noneLeft') : '')}
+    </div>
+    <div class="tools"><div class="sbox">${ico('search', 18)}<input id="iq" type="search" placeholder="${t('searchInv')}" value="${esc(S.invQ)}" autocomplete="off"></div>
+      <div class="chips">${chips.map(([k, l, n]) => `<button type="button" data-fc="${k}" class="${S.invF === k ? 'on' : ''}">${l} <span>${n}</span></button>`).join('')}</div></div>
+    <div id="itab"></div>`;
   $('#add').onclick = () => productForm();
   $('#iq').oninput = e => { S.invQ = e.target.value; drawInvTable(); };
+  v.querySelectorAll('[data-fc]').forEach(b => b.onclick = () => { S.invF = b.dataset.fc; v.querySelectorAll('[data-fc]').forEach(x => x.classList.toggle('on', x === b)); drawInvTable(); });
   drawInvTable();
 }
 function drawInvTable() {
   const el = $('#itab'), q = S.invQ.trim().toLowerCase();
-  const list = S.products.filter(p => !q || p.name.toLowerCase().includes(q));
-  if (!list.length) { el.innerHTML = `<div class="empty">${t('noProducts')}</div>`; return; }
-  el.innerHTML = `<div class="table-wrap"><table><thead><tr><th>${t('product')}</th><th class="n">${t('price')}</th><th class="n">${t('stock')}</th><th></th></tr></thead><tbody>
-    ${list.map(p => `<tr><td><b>${esc(p.name)}</b></td>
-    <td class="n">₹${money(p.price)}${p.unit ? ` <span class="mute">/ ${esc(p.unit)}</span>` : ''}</td>
-    <td class="n"><b>${p.stock}</b> ${p.stock <= 0 ? `<span class="badge">${t('outOfStock')}</span>` : p.stock <= p.lowStock ? `<span class="badge warn">${t('low')}</span>` : ''}</td>
-    <td class="n" style="white-space:nowrap"><button class="btn sm" data-s="${p.id}">${t('updateStock')}</button> <button class="btn sec sm" data-e="${p.id}">${t('edit')}</button></td></tr>`).join('')}</tbody></table></div>`;
-  el.querySelectorAll('[data-e]').forEach(b => b.onclick = () => productForm(S.products.find(p => p.id === +b.dataset.e)));
-  el.querySelectorAll('[data-s]').forEach(b => b.onclick = () => stockForm(S.products.find(p => p.id === +b.dataset.s)));
+  if (!S.products.length) { el.innerHTML = `<div class="empty">${t('noProducts')}</div>`; return; }
+  const list = S.products.filter(p => (!q || (p.name + ' ' + (p.nameMr || '')).toLowerCase().includes(q)) && (S.invF === 'all' || stockState(p) === S.invF));
+  if (!list.length) { el.innerHTML = `<div class="empty">${t('noMatch')}</div>`; return; }
+  const tone = { ok: 'sky', low: 'amber', out: 'red' };
+  el.innerHTML = `<div class="table-wrap"><table class="itable"><thead><tr><th>${t('product')}</th><th class="n">${t('price')}</th><th class="n">${t('stock')}</th><th class="n">${t('value')}</th><th></th></tr></thead><tbody>
+    ${list.map(p => {
+      const s = stockState(p), alt = S.lang === 'mr' ? p.name : p.nameMr;
+      return `<tr><td><div class="pcell"><span class="av ${tone[s]}">${esc(initial(pname(p)))}</span><div><b>${esc(pname(p))}</b>${alt ? `<div class="mute">${esc(alt)}</div>` : ''}</div></div></td>
+      <td class="n" data-l="${t('price')}">₹${money(p.price)}${p.unit ? ` <span class="mute">/ ${esc(p.unit)}</span>` : ''}</td>
+      <td class="n" data-l="${t('stock')}"><b>${p.stock}</b> ${s === 'out' ? `<span class="badge">${t('outOfStock')}</span>` : s === 'low' ? `<span class="badge warn">${t('low')}</span>` : `<span class="badge ok">${t('inStockBadge')}</span>`}</td>
+      <td class="n" data-l="${t('value')}">₹${money(p.stock * p.price)}</td>
+      <td class="n"><div class="acts"><button class="btn sm" data-s="${p.id}">${t('updateStock')}</button>
+        <button class="ib" data-e="${p.id}" title="${t('edit')}" aria-label="${t('edit')}">${ico('edit', 17)}</button>
+        <button class="ib del" data-x="${p.id}" title="${t('deleteProduct')}" aria-label="${t('deleteProduct')}">${ico('trash', 17)}</button></div></td></tr>`;
+    }).join('')}</tbody></table></div>`;
+  el.querySelectorAll('[data-e]').forEach(b => b.onclick = () => productForm(prod(b.dataset.e)));
+  el.querySelectorAll('[data-s]').forEach(b => b.onclick = () => stockForm(prod(b.dataset.s)));
+  el.querySelectorAll('[data-x]').forEach(b => b.onclick = () => deleteProduct(prod(b.dataset.x)));
 }
 function modal(html, size) {
   const m = document.createElement('div'); m.className = 'modal';
@@ -296,18 +373,34 @@ function modal(html, size) {
   m.addEventListener('mousedown', e => { if (e.target === m) m.remove(); });
   document.body.appendChild(m); return m;
 }
+// in-app confirmation dialog; resolves true when the user confirms
+const ask = (title, msg, okLabel) => new Promise(done => {
+  const m = modal(`<h3>${esc(title)}</h3><p class="mute" style="margin:8px 0 20px">${esc(msg)}</p>
+    <div class="row"><button class="btn danger solid" data-ok>${okLabel}</button><button class="btn sec" data-no>${t('cancel')}</button></div>`);
+  m.addEventListener('mousedown', e => { if (e.target === m) done(false); });
+  m.querySelector('[data-no]').onclick = () => { m.remove(); done(false); };
+  m.querySelector('[data-ok]').onclick = () => { m.remove(); done(true); };
+  m.querySelector('[data-no]').focus();
+});
+const deleteProduct = guard(async p => {
+  if (!await ask(t('deleteProduct'), t('confirmDeleteNamed').replace('{n}', pname(p)), t('delete'))) return;
+  await api('DELETE', '/api/products/' + p.id);
+  S.products = S.products.filter(x => x.id !== p.id); S.cart = S.cart.filter(i => i.productId !== p.id);
+  document.querySelectorAll('.modal').forEach(x => x.remove()); renderApp(); toast(t('deleted'));
+});
 function productForm(p) {
   const m = modal(`<h3>${p ? t('editProduct') : t('addProduct')}</h3><form id="pf">
-    <label>${t('productName')} *</label><input name="name" required value="${esc(p?.name)}" maxlength="80">
+    <div class="row"><div><label>${t('nameEn')} *</label><input name="name" required value="${esc(p?.name)}" maxlength="80"></div>
+    <div><label>${t('nameMr')}</label><input name="nameMr" value="${esc(p?.nameMr)}" maxlength="80"></div></div>
     <div class="row"><div><label>${t('price')} *</label><input name="price" type="number" min="0" step="any" required inputmode="decimal" value="${p?.price ?? ''}"></div>
     <div><label>${t('unit')}</label><input name="unit" value="${esc(p?.unit)}" maxlength="12"></div></div>
     <div class="row"><div><label>${t('openingStock')} *</label><input name="stock" type="number" min="0" step="1" required inputmode="numeric" value="${p?.stock ?? ''}"></div>
     <div><label>${t('lowStock')}</label><input name="lowStock" type="number" min="0" step="1" inputmode="numeric" value="${p?.lowStock ?? 10}"></div></div>
     <div class="row" style="margin-top:20px"><button class="btn">${t('save')}</button><button type="button" class="btn sec" data-c>${t('cancel')}</button>
-    ${p ? `<button type="button" class="btn danger fit" data-del>${t('delete')}</button>` : ''}</div></form>`);
+    ${p ? `<button type="button" class="btn danger fit" data-del>${t('delete')}</button>` : ''}</div></form>`, 'wide');
   m.querySelector('[data-c]').onclick = () => m.remove();
   const del = m.querySelector('[data-del]');
-  if (del) del.onclick = guard(async () => { if (!confirm(t('confirmDelete'))) return; await api('DELETE', '/api/products/' + p.id); S.products = S.products.filter(x => x.id !== p.id); S.cart = S.cart.filter(i => i.productId !== p.id); m.remove(); renderApp(); });
+  if (del) del.onclick = () => deleteProduct(p);
   m.querySelector('#pf').onsubmit = guard(async e => {
     e.preventDefault();
     const d = Object.fromEntries(new FormData(e.target));
@@ -319,7 +412,7 @@ function productForm(p) {
 }
 function stockForm(p) {
   let mode = 1;
-  const m = modal(`<h3>${esc(p.name)}</h3><p class="mute" style="margin:4px 0 14px">${t('stock')}: <b style="color:var(--ink)">${p.stock}</b></p><form id="sf">
+  const m = modal(`<h3>${esc(pname(p))}</h3><p class="mute" style="margin:4px 0 14px">${t('stock')}: <b style="color:var(--ink)">${p.stock}</b></p><form id="sf">
     <div class="seg"><button type="button" data-k="1" class="on">${t('addStock')}</button><button type="button" data-k="-1">${t('removeStock')}</button></div>
     <label>${t('quantity')}</label><input name="d" type="number" min="1" step="1" required inputmode="numeric" autofocus>
     <p class="mute" id="pv" style="margin:8px 0 0"></p>
@@ -352,15 +445,15 @@ async function drawRecords() {
   const qs = new URLSearchParams({ from: S.recDate, to: S.recDate });
   const [sum, list] = await Promise.all([api('GET', '/api/summary?' + qs), api('GET', '/api/invoices?' + qs)]);
   const el = $('#rbody'); if (!el) return;
-  el.innerHTML = `<div class="kpis">
-    <div class="kpi"><small>${t('sales')}</small><b>₹${money(sum.sales)}</b></div>
-    <div class="kpi"><small>${t('invoices')}</small><b>${sum.invoices}</b></div>
-    <div class="kpi"><small>${t('qtySold')}</small><b>${sum.qty}</b></div></div>
+  el.innerHTML = `<div class="kcards c3">
+    ${kcard('green', 'rupee', t('sales'), '₹' + inr(sum.sales), '')}
+    ${kcard('sky', 'receipt', t('invoices'), sum.invoices, '')}
+    ${kcard('violet', 'box', t('qtySold'), sum.qty, '')}</div>
     <h2 class="sh">${t('orders')}</h2>
     ${list.length ? `<div class="table-wrap"><table class="rec"><thead><tr><th>${t('billNo')}</th><th>${t('date')}</th><th>${t('customer')}</th><th>${t('orderDetails')}</th><th class="n">${t('total')}</th><th></th></tr></thead><tbody>
       ${list.map(i => `<tr><td><b>${i.no}</b>${i.status === 'void' ? `<div><span class="badge">${t('cancelled')}</span></div>` : ''}</td><td style="white-space:nowrap">${i.date.split('-').reverse().join('-')}</td>
       <td>${esc(i.customer)}${i.phone ? `<div class="mute">${esc(i.phone)}</div>` : ''}</td>
-      <td class="od">${i.items.map(it => `<div>${esc(it.name)} <span class="mute">&times; ${it.qty} @ ${money(it.rate)}</span></div>`).join('')}${i.discount ? `<div class="mute">${t('discount')}: &minus; ${money(i.discount)}</div>` : ''}</td>
+      <td class="od">${i.items.map(it => `<div>${esc(pname(it))} <span class="mute">&times; ${it.qty} @ ${money(it.rate)}</span></div>`).join('')}${i.discount ? `<div class="mute">${t('discount')}: &minus; ${money(i.discount)}</div>` : ''}</td>
       <td class="n" ${i.status === 'void' ? 'style="text-decoration:line-through;color:var(--mute)"' : ''}><b>₹${money(i.total)}</b></td>
       <td class="n" style="white-space:nowrap"><button class="btn sec sm" data-v="${i.id}">${t('view')}</button> <button class="btn sec sm" data-prt="${i.id}">${t('print')}</button> <button class="btn sec sm" data-pdf="${i.id}">PDF</button></td></tr>`).join('')}</tbody></table></div>` : `<div class="empty">${t('noRecords')}</div>`}`;
   const byId = Object.fromEntries(list.map(i => [i.id, i]));
@@ -390,12 +483,12 @@ function invoiceHTML(inv) {
   return `<div class="inv">
     <div class="inv-title">${t('invoice')}</div>${inv.status === 'void' ? `<div class="inv-void">${t('cancelled').toUpperCase()}</div>` : ''}
     <div class="inv-box inv-top">
-      <div><div class="inv-co">${esc(s.shopName || t('appName'))}</div>${s.address ? esc(s.address) + '<br>' : ''}${s.phone ? t('ph') + ': ' + esc(s.phone) : ''}</div>
+      <div><div class="inv-co">${esc(shopTitle())}</div>${s.address ? esc(s.address) + '<br>' : ''}${s.phone ? t('ph') + ': ' + esc(s.phone) : ''}</div>
       <table class="inv-meta"><tr><td><b>${t('invNo')}:</b></td><td>${inv.no}</td></tr><tr><td><b>${t('invDate')}:</b></td><td>${dmy(inv.date)}</td></tr>
       <tr><td><b>${t('payMode')}:</b></td><td>${t(inv.payment)}</td></tr></table></div>
     <table class="inv-t inv-bill"><tr><td><b>${t('billTo')}:</b><br>${esc(inv.customer)}${inv.phone ? '<br>' + t('ph') + ': ' + esc(inv.phone) : ''}</td></tr></table>
     <table class="inv-t inv-items"><thead><tr><th style="width:7%">${t('sr')}</th><th>${t('desc')}</th><th style="width:10%">${t('qty')}</th><th style="width:14%">${t('rate')} (₹)</th><th style="width:17%">${t('amount')} (₹)</th></tr></thead><tbody>
-      ${inv.items.map((i, n) => `<tr><td class="c">${n + 1}</td><td>${esc(i.name)}</td><td class="c">${i.qty}</td><td class="r">${money(i.rate)}</td><td class="r">${money(i.amount)}</td></tr>`).join('')}
+      ${inv.items.map((i, n) => `<tr><td class="c">${n + 1}</td><td>${esc(pname(i))}</td><td class="c">${i.qty}</td><td class="r">${money(i.rate)}</td><td class="r">${money(i.amount)}</td></tr>`).join('')}
       <tr class="pad"><td></td><td></td><td></td><td></td><td></td></tr></tbody></table>
     <table class="inv-t inv-foot"><tr><td class="inv-words"><b>${t('words')}:</b><br>Rupees ${words(inv.total)} Only${terms.length ? `<br><br><b>${t('terms')}:</b><br>${terms.map((x, n) => `${n + 1}. ${esc(x)}`).join('<br>')}` : ''}</td>
       <td class="inv-sums"><table>
@@ -403,7 +496,7 @@ function invoiceHTML(inv) {
         ${inv.discount ? `<tr><td>${t('discount')}${inv.discountType === 'percent' ? ` (${inv.discountValue}%)` : ''}</td><td class="r">- ${money(inv.discount)}</td></tr>` : ''}
         ${inv.roundOff ? `<tr><td>${t('roundOff')}</td><td class="r">${inv.roundOff > 0 ? '+' : '-'} ${money(Math.abs(inv.roundOff))}</td></tr>` : ''}
         <tr class="grand"><td>${t('grand')}</td><td class="r">₹ ${money(inv.total)}</td></tr></table></td></tr></table>
-    <table class="inv-t inv-sign"><tr><td>${t('custSign')}</td><td class="r">${t('forShop')} <b>${esc(s.shopName || t('appName'))}</b><br><br><br>${t('authSign')}</td></tr></table>
+    <table class="inv-t inv-sign"><tr><td>${t('custSign')}</td><td class="r">${t('forShop')} <b>${esc(shopTitle())}</b><br><br><br>${t('authSign')}</td></tr></table>
     <div class="inv-note">${t('computerGen')}</div></div>`;
 }
 const fileBase = inv => (inv.customer || '').replace(/[\\/:*?"<>|\x00-\x1f]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80) || inv.no;
@@ -414,13 +507,13 @@ function receiptHTML(inv, w) {
   const L = (x, y, cls = '') => `<div class="line ${cls}"><span>${x}</span><span>${y}</span></div>`;
   const terms = termsText().split('\n').map(x => x.trim()).filter(Boolean);
   return `<div class="receipt w${w}">
-    <div class="c sh">${esc(s.shopName || t('appName'))}</div>
+    <div class="c sh">${esc(shopTitle())}</div>
     ${s.address ? `<div class="c">${esc(s.address)}</div>` : ''}${s.phone ? `<div class="c">${t('ph')}: ${esc(s.phone)}</div>` : ''}
     <hr><div class="c b">${t('invoice')}</div>${inv.status === 'void' ? `<div class="void">${t('cancelled').toUpperCase()}</div>` : ''}
     ${L(t('invNo'), inv.no)}${L(t('invDate'), `${dmy(inv.date)} ${d.toTimeString().slice(0, 5)}`)}
     ${L(t('customer'), esc(inv.customer))}${inv.phone ? L(t('ph'), esc(inv.phone)) : ''}
     <hr><table><tr><th>${t('product')}</th><th class="r">${t('qty')}</th><th class="r">${t('rate')}</th><th class="r">${t('amount')}</th></tr>
-    ${inv.items.map(i => `<tr><td>${esc(i.name)}</td><td class="r">${i.qty}</td><td class="r">${money(i.rate)}</td><td class="r">${money(i.amount)}</td></tr>`).join('')}</table>
+    ${inv.items.map(i => `<tr><td>${esc(pname(i))}</td><td class="r">${i.qty}</td><td class="r">${money(i.rate)}</td><td class="r">${money(i.amount)}</td></tr>`).join('')}</table>
     <hr>${L(t('subtotal'), money(inv.subtotal))}
     ${inv.discount ? L(`${t('discount')}${inv.discountType === 'percent' ? ` (${inv.discountValue}%)` : ''}`, '-' + money(inv.discount)) : ''}
     ${inv.roundOff ? L(t('roundOff'), (inv.roundOff > 0 ? '+' : '-') + money(Math.abs(inv.roundOff))) : ''}
