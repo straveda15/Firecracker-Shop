@@ -141,7 +141,7 @@ function viewBilling(v) {
       <div style="margin-top:18px"><button class="btn lg" id="gen">${t('generate')}</button></div>
       <div style="text-align:center;margin-top:10px"><button class="link" id="clr">${t('clear')}</button></div>
     </aside></div><button id="cartbar" type="button"></button>`;
-  $('#cn').oninput = e => S.customer = e.target.value;
+  $('#cn').oninput = e => { e.target.value = S.customer = e.target.value.replace(/[^\p{L}\p{M} .'-]/gu, ''); };
   $('#cp').oninput = e => { e.target.value = S.phone = e.target.value.replace(/\D/g, '').slice(0, 10); };
   $('#ps').oninput = e => { S.q = e.target.value; drawList(); };
   $('#dv').oninput = e => { S.discVal = e.target.value; drawTotals(); };
