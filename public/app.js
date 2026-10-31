@@ -64,7 +64,7 @@ function renderApp() {
   if (!S.user) return renderLogin(app);
   const tabs = [['billing', '🧾'], ['inventory', '📦'], ['records', '📊'], ['settings', '⚙️']];
   app.innerHTML = `
-    <header><div class="logo">🧨</div><div class="title">${esc(shopTitle())}</div>${langBtn('lg')}<button class="hbtn" id="lo">${t('logout')}</button></header>
+    <header><div class="logo">🧨</div><div class="title">${esc(shopTitle())}</div><span class="who">👤 ${esc(S.user.username)}</span>${langBtn('lg')}<button class="hbtn" id="lo">${t('logout')}</button></header>
     <nav>${tabs.map(([k, i]) => `<button data-t="${k}" class="${S.tab === k ? 'on' : ''}"><span>${i}</span>${t(k)}</button>`).join('')}</nav>
     <main id="view"></main>`;
   $('#lg').onclick = () => setLang(S.lang === 'en' ? 'mr' : 'en');
@@ -113,7 +113,7 @@ function viewBilling(v) {
         <div><label>${t('payment')}</label><select id="pay">${['cash', 'upi', 'card'].map(p => `<option value="${p}" ${S.payment === p ? 'selected' : ''}>${t(p)}</option>`).join('')}</select></div></div>
       <div style="margin-top:16px"><button class="btn lg" id="gen">${t('generate')}</button></div>
       <div style="text-align:center;margin-top:8px"><button class="btn sec sm" id="clr">${t('clear')}</button></div>
-    </section></aside></div>`;
+    </section></aside></div><button id="cartbar" type="button"></button>`;
   $('#cn').oninput = e => S.customer = e.target.value;
   $('#cp').oninput = e => S.phone = e.target.value;
   $('#ps').oninput = e => { S.q = e.target.value; drawTiles(); };
@@ -181,6 +181,8 @@ function drawCart() {
 }
 function drawTotals() {
   const el = $('#tot'); if (!el) return;
+  const bar = $('#cartbar'), n = S.cart.reduce((x, i) => x + i.qty, 0);
+  if (bar) { bar.className = n ? 'on' : ''; bar.innerHTML = `<span>🧾 ${n} ${t('items')} · <b>₹${money(calc().total)}</b></span><span>${t('currentBill')} ›</span>`; bar.onclick = () => $('.billside').scrollIntoView({ behavior: 'smooth', block: 'start' }); }
   const c = calc(), line = (k, v) => `<div class="tot"><span>${k}</span><span>${v}</span></div>`;
   el.innerHTML = line(`${t('subtotal')} (${S.cart.reduce((a, i) => a + i.qty, 0)} ${t('items')})`, '₹' + money(c.subtotal)) +
     (c.discount ? line(t('discount') + (S.discType === 'percent' ? ` (${Number(S.discVal)}%)` : ''), '− ₹' + money(c.discount)) : '') +
