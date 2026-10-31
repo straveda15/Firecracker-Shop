@@ -1,5 +1,7 @@
 const I18N = {
   en: {
+    productName: 'Product name', ph: 'Phone', sr: 'Sr.', desc: 'Description of Goods', invNo: 'Invoice No', invDate: 'Invoice Date', payMode: 'Payment Mode', billTo: 'Bill To',
+    words: 'Amount in words', terms: 'Terms & Conditions', grand: 'Grand Total', custSign: 'Customer Signature', forShop: 'For', authSign: 'Authorised Signatory', computerGen: 'This is a computer generated invoice.',
     appName: 'Jaybhadra Fatake Wholesaler', login: 'Login', username: 'Username', password: 'Password', logout: 'Logout',
     welcome: 'Sign in to continue', billing: 'New Bill', inventory: 'Inventory', records: 'Records', settings: 'Settings',
     customer: 'Customer name', phone: 'Phone number', optional: 'optional', custDetails: 'Customer details',
@@ -17,13 +19,15 @@ const I18N = {
     sales: 'Total sales', invoices: 'Invoices', qtySold: 'Qty sold', daily: 'Daily sales', date: 'Date', history: 'All invoices',
     topItems: 'Items sold', view: 'View', cancelled: 'Cancelled', voidInv: 'Cancel invoice', voidConfirm: 'Cancel this invoice and return the stock?',
     print: 'Print', pdf: 'Download PDF', close: 'Close', newBill: 'New bill', invoice: 'INVOICE', billNo: 'Bill No',
-    shopName: 'Shop name (English)', shopNameMr: 'Shop name (मराठी)', address: 'Address', paper: 'Thermal paper width',
+    shopName: 'Shop name', shopNameMr: 'Shop name (मराठी)', address: 'Address', paper: 'Thermal paper width',
     footer: 'Bill footer message', changePw: 'Change password', current: 'Current password', newPw: 'New password (min 6)',
     saved: 'Saved', done: 'Done', confirmDelete: 'Delete this product?', billCreated: 'Bill created', noRecords: 'No records for this period',
     savePw: 'Update password', shopDetails: 'Shop details', security: 'Account', items: 'items', defaultPwWarn: 'Please change the default password in Settings.',
     enterName: 'Enter the customer name', pdfFail: 'PDF library not loaded (needs internet once). Use Print → Save as PDF.',
   },
   mr: {
+    productName: 'उत्पादनाचे नाव', ph: 'फोन', sr: 'अ.क्र.', desc: 'मालाचे वर्णन', invNo: 'बिल क्र.', invDate: 'बिल दिनांक', payMode: 'पेमेंट प्रकार', billTo: 'ग्राहक',
+    words: 'अक्षरी रक्कम (English)', terms: 'अटी व शर्ती', grand: 'एकूण देय', custSign: 'ग्राहकाची सही', forShop: 'साठी', authSign: 'अधिकृत स्वाक्षरी', computerGen: 'हे संगणकीय बिल आहे.',
     appName: 'जयभद्र फटाके होलसेलर', login: 'लॉगिन', username: 'वापरकर्ता नाव', password: 'पासवर्ड', logout: 'बाहेर पडा',
     welcome: 'पुढे जाण्यासाठी लॉगिन करा', billing: 'नवीन बिल', inventory: 'साठा', records: 'नोंदी', settings: 'सेटिंग्ज',
     customer: 'ग्राहकाचे नाव', phone: 'फोन नंबर', optional: 'ऐच्छिक', custDetails: 'ग्राहकाची माहिती',
@@ -41,7 +45,7 @@ const I18N = {
     sales: 'एकूण विक्री', invoices: 'बिले', qtySold: 'विकलेले नग', daily: 'दैनिक विक्री', date: 'दिनांक', history: 'सर्व बिले',
     topItems: 'विकलेल्या वस्तू', view: 'पहा', cancelled: 'रद्द', voidInv: 'बिल रद्द करा', voidConfirm: 'हे बिल रद्द करून साठा परत करायचा?',
     print: 'प्रिंट', pdf: 'पीडीएफ डाउनलोड', close: 'बंद करा', newBill: 'नवीन बिल', invoice: 'बिल', billNo: 'बिल क्र.',
-    shopName: 'दुकानाचे नाव (English)', shopNameMr: 'दुकानाचे नाव (मराठी)', address: 'पत्ता', paper: 'थर्मल कागद रुंदी',
+    shopName: 'दुकानाचे नाव', shopNameMr: 'दुकानाचे नाव (मराठी)', address: 'पत्ता', paper: 'थर्मल कागद रुंदी',
     footer: 'बिलाखालील संदेश', changePw: 'पासवर्ड बदला', current: 'सध्याचा पासवर्ड', newPw: 'नवीन पासवर्ड (किमान ६)',
     saved: 'जतन झाले', done: 'पूर्ण', confirmDelete: 'हे उत्पादन काढायचे?', billCreated: 'बिल तयार झाले', noRecords: 'या कालावधीत नोंदी नाहीत',
     savePw: 'पासवर्ड अपडेट करा', shopDetails: 'दुकानाची माहिती', security: 'खाते', items: 'वस्तू', defaultPwWarn: 'कृपया सेटिंग्जमध्ये डीफॉल्ट पासवर्ड बदला.',

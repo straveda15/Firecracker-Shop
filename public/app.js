@@ -13,8 +13,8 @@ const S = {
   invQ: '', rec: { from: '', to: '', q: '', range: 'all' },
 };
 const t = k => I18N[S.lang][k] ?? I18N.en[k] ?? k;
-const pname = p => (S.lang === 'mr' && p.nameMr) ? p.nameMr : p.name;
-const shopTitle = () => S.lang === 'mr' && S.settings.shopNameMr ? S.settings.shopNameMr : (S.settings.shopName || t('appName'));
+const pname = p => p.name;
+const shopTitle = () => S.settings.shopName || t('appName');
 
 const getAuth = () => { try { return localStorage.getItem('auth'); } catch { return null; } };
 const setAuth = v => { try { v ? localStorage.setItem('auth', v) : localStorage.removeItem('auth'); } catch { /* storage blocked */ } };
@@ -48,6 +48,14 @@ async function loadBase() {
   [S.products, S.settings] = await Promise.all([api('GET', '/api/products'), api('GET', '/api/settings')]);
 }
 function setLang(l) { S.lang = l; localStorage.setItem('lang', l); document.documentElement.lang = l; renderApp(); }
+const EYE = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>';
+const EYE_OFF = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.9 10.9 0 0 1 12 19c-7 0-11-7-11-7a19.8 19.8 0 0 1 5.06-5.94M9.9 4.24A10.9 10.9 0 0 1 12 5c7 0 11 7 11 7a19.9 19.9 0 0 1-3.17 4.19M14.12 14.12a3 3 0 1 1-4.24-4.24M1 1l22 22"/></svg>';
+const pwField = attrs => `<div class="pw"><input type="password" ${attrs}><button type="button" class="eye" aria-label="Show / hide password">${EYE}</button></div>`;
+document.addEventListener('click', e => {
+  const b = e.target.closest('.eye'); if (!b) return;
+  const i = b.parentElement.querySelector('input'), show = i.type === 'password';
+  i.type = show ? 'text' : 'password'; b.innerHTML = show ? EYE_OFF : EYE;
+});
 const langBtn = id => `<button class="hbtn" id="${id}">${S.lang === 'en' ? 'मराठी' : 'English'}</button>`;
 
 function renderApp() {
@@ -68,10 +76,8 @@ function renderApp() {
 function renderLogin(app) {
   app.innerHTML = `<div class="login-wrap"><div class="login"><div class="logo">🧨</div><h2>${t('appName')}</h2><p>${t('welcome')}</p>
     <form id="f"><label>${t('username')}</label><input id="u" autocomplete="username" autocapitalize="none" required>
-    <label>${t('password')}</label><input id="p" type="password" autocomplete="current-password" required>
-    <div class="row" style="margin-top:18px;align-items:center"><button class="btn">${t('login')}</button>
-    <button type="button" class="btn sec fit" id="lg">${S.lang === 'en' ? 'मराठी' : 'English'}</button></div></form></div></div>`;
-  $('#lg').onclick = () => setLang(S.lang === 'en' ? 'mr' : 'en');
+    <label>${t('password')}</label>${pwField('id="p" autocomplete="current-password" required')}
+    <div style="margin-top:18px"><button class="btn lg">${t('login')}</button></div></form></div></div>`;
   $('#f').onsubmit = guard(async e => {
     e.preventDefault();
     const pw = $('#p').value;
@@ -102,8 +108,8 @@ function viewBilling(v) {
     </div>
     <aside class="billside"><section class="card"><h3>${t('currentBill')}</h3><div id="cart"></div><div id="tot" class="sums"></div>
       <div class="row" style="margin-top:12px"><div><label>${t('discountOpt')}</label>
-        <div class="row" style="flex-wrap:nowrap;gap:0"><input id="dv" type="number" min="0" step="any" inputmode="decimal" value="${esc(S.discVal)}" style="border-radius:10px 0 0 10px">
-        <div class="seg fit"><button type="button" data-d="amount" style="border-radius:0">₹</button><button type="button" data-d="percent" style="border-radius:0 10px 10px 0">%</button></div></div></div>
+        <div class="disc"><input id="dv" type="number" min="0" step="any" inputmode="decimal" value="${esc(S.discVal)}">
+        <div class="seg"><button type="button" data-d="amount">₹</button><button type="button" data-d="percent">%</button></div></div></div>
         <div><label>${t('payment')}</label><select id="pay">${['cash', 'upi', 'card'].map(p => `<option value="${p}" ${S.payment === p ? 'selected' : ''}>${t(p)}</option>`).join('')}</select></div></div>
       <div style="margin-top:16px"><button class="btn lg" id="gen">${t('generate')}</button></div>
       <div style="text-align:center;margin-top:8px"><button class="btn sec sm" id="clr">${t('clear')}</button></div>
@@ -125,7 +131,7 @@ function drawTiles() {
   const el = $('#tiles'); if (!el) return;
   if (!S.products.length) { el.innerHTML = `<div class="empty"><span class="ico">📦</span>${t('noProducts')}</div>`; return; }
   const q = S.q.trim().toLowerCase();
-  const list = S.products.filter(p => !q || (p.name + ' ' + p.nameMr).toLowerCase().includes(q));
+  const list = S.products.filter(p => !q || p.name.toLowerCase().includes(q));
   el.innerHTML = `<div class="tiles">${list.map(p => {
     const inBill = S.cart.find(i => i.productId === p.id);
     return `<button class="tile" data-id="${p.id}" ${p.stock <= 0 ? 'disabled' : ''}>
@@ -215,26 +221,25 @@ function viewInventory(v) {
 }
 function drawInvTable() {
   const el = $('#itab'), q = S.invQ.trim().toLowerCase();
-  const list = S.products.filter(p => !q || (p.name + ' ' + p.nameMr).toLowerCase().includes(q));
+  const list = S.products.filter(p => !q || p.name.toLowerCase().includes(q));
   if (!list.length) { el.innerHTML = `<div class="empty"><span class="ico">📦</span>${t('noProducts')}</div>`; return; }
   el.innerHTML = `<div class="table-wrap"><table><thead><tr><th>${t('product')}</th><th class="n">${t('price')}</th><th class="n">${t('stock')}</th><th></th></tr></thead><tbody>
-    ${list.map(p => `<tr><td><b>${esc(p.name)}</b>${p.nameMr ? `<div class="mute">${esc(p.nameMr)}</div>` : ''}</td>
+    ${list.map(p => `<tr><td><b>${esc(p.name)}</b></td>
     <td class="n">₹${money(p.price)}${p.unit ? `<div class="mute">/ ${esc(p.unit)}</div>` : ''}</td>
     <td class="n"><b>${p.stock}</b> ${p.stock <= 0 ? `<span class="badge">${t('outOfStock')}</span>` : p.stock <= p.lowStock ? `<span class="badge warn">${t('low')}</span>` : ''}</td>
     <td class="n" style="white-space:nowrap"><button class="btn sm" data-s="${p.id}">＋ ${t('updateStock')}</button> <button class="btn sec sm" data-e="${p.id}">${t('edit')}</button></td></tr>`).join('')}</tbody></table></div>`;
   el.querySelectorAll('[data-e]').forEach(b => b.onclick = () => productForm(S.products.find(p => p.id === +b.dataset.e)));
   el.querySelectorAll('[data-s]').forEach(b => b.onclick = () => stockForm(S.products.find(p => p.id === +b.dataset.s)));
 }
-function modal(html, wide) {
+function modal(html, size) {
   const m = document.createElement('div'); m.className = 'modal';
-  m.innerHTML = `<div class="box ${wide ? 'wide' : ''}">${html}</div>`;
+  m.innerHTML = `<div class="box ${size || ''}">${html}</div>`;
   m.addEventListener('mousedown', e => { if (e.target === m) m.remove(); });
   document.body.appendChild(m); return m;
 }
 function productForm(p) {
   const m = modal(`<h3>${p ? t('editProduct') : t('addProduct')}</h3><form id="pf">
-    <label>${t('nameEn')} *</label><input name="name" required value="${esc(p?.name)}" maxlength="80">
-    <label>${t('nameMr')}</label><input name="nameMr" value="${esc(p?.nameMr)}" maxlength="80">
+    <label>${t('productName')} *</label><input name="name" required value="${esc(p?.name)}" maxlength="80">
     <div class="row"><div><label>${t('price')} *</label><input name="price" type="number" min="0" step="any" required inputmode="decimal" value="${p?.price ?? ''}"></div>
     <div><label>${t('unit')}</label><input name="unit" value="${esc(p?.unit)}" maxlength="12"></div></div>
     <div class="row"><div><label>${t('openingStock')} *</label><input name="stock" type="number" min="0" step="1" required inputmode="numeric" value="${p?.stock ?? ''}"></div>
@@ -315,41 +320,60 @@ async function drawRecords() {
     <div class="card"><h3>${t('daily')}</h3>${sum.days.length ? `<div class="table-wrap"><table><thead><tr><th>${t('date')}</th><th class="n">${t('invoices')}</th><th class="n">${t('qty')}</th><th class="n">${t('total')}</th></tr></thead><tbody>
       ${sum.days.map(d => `<tr><td>${d.date}</td><td class="n">${d.invoices}</td><td class="n">${d.qty}</td><td class="n"><b>₹${money(d.total)}</b></td></tr>`).join('')}</tbody></table></div>` : none}</div>
     <div class="card"><h3>${t('topItems')}</h3>${sum.products.length ? `<div class="table-wrap"><table><thead><tr><th>${t('product')}</th><th class="n">${t('qty')}</th><th class="n">${t('amount')}</th></tr></thead><tbody>
-      ${sum.products.map(p => `<tr><td>${esc(S.lang === 'mr' && p.nameMr ? p.nameMr : p.name)}</td><td class="n">${p.qty}</td><td class="n">₹${money(p.amount)}</td></tr>`).join('')}</tbody></table></div>` : none}</div></div>`;
+      ${sum.products.map(p => `<tr><td>${esc(p.name)}</td><td class="n">${p.qty}</td><td class="n">₹${money(p.amount)}</td></tr>`).join('')}</tbody></table></div>` : none}</div></div>`;
   const byId = Object.fromEntries(list.map(i => [i.id, i]));
   el.querySelectorAll('[data-v]').forEach(b => b.onclick = () => showInvoice(byId[b.dataset.v]));
   el.querySelectorAll('[data-pdf]').forEach(b => b.onclick = guard(() => downloadPdf(byId[b.dataset.pdf])));
 }
 
-// ---------------- invoice / receipt ----------------
-function receiptHTML(inv) {
-  const s = S.settings, mr = S.lang === 'mr', w = s.paper === 58 ? 58 : 80;
-  const L = (a, b, cls = '') => `<div class="line ${cls}"><span>${a}</span><span>${b}</span></div>`;
-  const d = new Date(inv.createdAt);
-  return `<div class="receipt w${w}">
-    <div class="c sh">${esc(mr && s.shopNameMr ? s.shopNameMr : s.shopName)}</div>
-    ${s.address ? `<div class="c">${esc(s.address)}</div>` : ''}${s.phone ? `<div class="c">☎ ${esc(s.phone)}</div>` : ''}
-    <hr><div class="c b">${t('invoice')}</div>${inv.status === 'void' ? `<div class="void">${t('cancelled').toUpperCase()}</div>` : ''}
-    ${L(t('billNo'), inv.no)}${L(t('date'), `${inv.date} ${d.toTimeString().slice(0, 5)}`)}
-    ${L(t('customer'), esc(inv.customer))}${inv.phone ? L(t('phone'), esc(inv.phone)) : ''}
-    <hr><table><tr><th>${t('product')}</th><th class="r">${t('qty')}</th><th class="r">${t('rate')}</th><th class="r">${t('amount')}</th></tr>
-    ${inv.items.map(i => `<tr><td>${esc(mr && i.nameMr ? i.nameMr : i.name)}</td><td class="r">${i.qty}</td><td class="r">${money(i.rate)}</td><td class="r">${money(i.amount)}</td></tr>`).join('')}</table>
-    <hr>${L(t('subtotal'), money(inv.subtotal))}
-    ${inv.discount ? L(`${t('discount')}${inv.discountType === 'percent' ? ` (${inv.discountValue}%)` : ''}`, '-' + money(inv.discount)) : ''}
-    ${inv.roundOff ? L(t('roundOff'), (inv.roundOff > 0 ? '+' : '-') + money(Math.abs(inv.roundOff))) : ''}
-    <hr>${L(t('total'), '₹' + money(inv.total), 'b sh')}<hr>
-    ${L(t('payment'), t(inv.payment))}${L(t('qty'), inv.items.reduce((a, i) => a + i.qty, 0))}
-    <hr><div class="c">${esc(s.footer || '')}</div></div>`;
+// ---------------- invoice (A4, same layout as the mock invoice) ----------------
+const DEFAULT_TERMS = 'Goods once sold will not be taken back or exchanged.\nStore in a cool, dry place away from fire.';
+const termsText = () => S.settings.terms ?? DEFAULT_TERMS;
+const dmy = d => d.split('-').reverse().join('-');
+function words(n) {
+  n = Math.round(n); if (n <= 0) return 'Zero';
+  const a = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+  const b = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+  const two = x => x < 20 ? a[x] : b[Math.floor(x / 10)] + (x % 10 ? ' ' + a[x % 10] : '');
+  const three = x => (x >= 100 ? a[Math.floor(x / 100)] + ' Hundred' + (x % 100 ? ' ' : '') : '') + (x % 100 ? two(x % 100) : '');
+  const parts = [[Math.floor(n / 1e7), 'Crore'], [Math.floor(n / 1e5) % 100, 'Lakh'], [Math.floor(n / 1e3) % 100, 'Thousand']];
+  let s = parts.filter(([v]) => v).map(([v, l]) => three(v) + ' ' + l).join(' ');
+  if (n % 1000) s += (s ? ' ' : '') + three(n % 1000);
+  return s;
+}
+function invoiceHTML(inv) {
+  const s = S.settings, qty = inv.items.reduce((x, i) => x + i.qty, 0);
+  const terms = termsText().split('\n').map(x => x.trim()).filter(Boolean);
+  return `<div class="inv">
+    <div class="inv-title">${t('invoice')}</div>${inv.status === 'void' ? `<div class="inv-void">${t('cancelled').toUpperCase()}</div>` : ''}
+    <div class="inv-box inv-top">
+      <div><div class="inv-co">${esc(s.shopName || t('appName'))}</div>${s.address ? esc(s.address) + '<br>' : ''}${s.phone ? t('ph') + ': ' + esc(s.phone) : ''}</div>
+      <table class="inv-meta"><tr><td><b>${t('invNo')}:</b></td><td>${inv.no}</td></tr><tr><td><b>${t('invDate')}:</b></td><td>${dmy(inv.date)}</td></tr>
+      <tr><td><b>${t('payMode')}:</b></td><td>${t(inv.payment)}</td></tr></table></div>
+    <table class="inv-t inv-bill"><tr><td><b>${t('billTo')}:</b><br>${esc(inv.customer)}${inv.phone ? '<br>' + t('ph') + ': ' + esc(inv.phone) : ''}</td></tr></table>
+    <table class="inv-t inv-items"><thead><tr><th style="width:7%">${t('sr')}</th><th>${t('desc')}</th><th style="width:10%">${t('qty')}</th><th style="width:14%">${t('rate')} (₹)</th><th style="width:17%">${t('amount')} (₹)</th></tr></thead><tbody>
+      ${inv.items.map((i, n) => `<tr><td class="c">${n + 1}</td><td>${esc(i.name)}</td><td class="c">${i.qty}</td><td class="r">${money(i.rate)}</td><td class="r">${money(i.amount)}</td></tr>`).join('')}
+      <tr class="pad"><td></td><td></td><td></td><td></td><td></td></tr></tbody></table>
+    <table class="inv-t inv-foot"><tr><td class="inv-words"><b>${t('words')}:</b><br>Rupees ${words(inv.total)} Only${terms.length ? `<br><br><b>${t('terms')}:</b><br>${terms.map((x, n) => `${n + 1}. ${esc(x)}`).join('<br>')}` : ''}</td>
+      <td class="inv-sums"><table>
+        <tr><td>${t('subtotal')} (${qty} ${t('qty')})</td><td class="r">${money(inv.subtotal)}</td></tr>
+        ${inv.discount ? `<tr><td>${t('discount')}${inv.discountType === 'percent' ? ` (${inv.discountValue}%)` : ''}</td><td class="r">- ${money(inv.discount)}</td></tr>` : ''}
+        ${inv.roundOff ? `<tr><td>${t('roundOff')}</td><td class="r">${inv.roundOff > 0 ? '+' : '-'} ${money(Math.abs(inv.roundOff))}</td></tr>` : ''}
+        <tr class="grand"><td>${t('grand')}</td><td class="r">₹ ${money(inv.total)}</td></tr></table></td></tr></table>
+    <table class="inv-t inv-sign"><tr><td>${t('custSign')}</td><td class="r">${t('forShop')} <b>${esc(s.shopName || t('appName'))}</b><br><br><br>${t('authSign')}</td></tr></table>
+    <div class="inv-note">${t('computerGen')}</div></div>`;
 }
 const fileBase = inv => (inv.customer || '').replace(/[\\/:*?"<>|\x00-\x1f]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80) || inv.no;
 
 function showInvoice(inv, fresh) {
-  const m = modal(`<div class="rwrap">${receiptHTML(inv)}</div>
+  const m = modal(`<div class="rwrap">${invoiceHTML(inv)}</div>
     <div class="row"><button class="btn" data-p>🖨 ${t('print')}</button><button class="btn sec" data-d>⬇ ${t('pdf')}</button></div>
     <div class="row" style="margin-top:10px">
-    ${inv.status === 'active' && !fresh ? `<button class="btn danger" data-v>${t('voidInv')}</button>` : ''}<button class="btn sec" data-c>${fresh ? t('newBill') : t('close')}</button></div>`, true);
+    ${inv.status === 'active' && !fresh ? `<button class="btn danger" data-v>${t('voidInv')}</button>` : ''}<button class="btn sec" data-c>${fresh ? t('newBill') : t('close')}</button></div>`, 'inv');
+  const wrap = m.querySelector('.rwrap'), el = wrap.firstElementChild;
+  el.style.zoom = Math.min(1, (wrap.clientWidth - 16) / el.offsetWidth); // shrink to fit small screens
   m.querySelector('[data-c]').onclick = () => m.remove();
-  m.querySelector('[data-p]').onclick = () => printReceipt(inv);
+  m.querySelector('[data-p]').onclick = () => printInvoice(inv);
   m.querySelector('[data-d]').onclick = guard(() => downloadPdf(inv));
   const vb = m.querySelector('[data-v]');
   if (vb) vb.onclick = guard(async () => {
@@ -358,24 +382,22 @@ function showInvoice(inv, fresh) {
     m.remove(); if (S.tab === 'records') drawRecords(); toast(t('done'));
   });
 }
-function printReceipt(inv) {
-  const w = S.settings.paper === 58 ? 58 : 80, oldTitle = document.title;
-  let st = $('#pageStyle'); if (!st) { st = document.createElement('style'); st.id = 'pageStyle'; document.head.appendChild(st); }
-  st.textContent = `@page{size:${w}mm auto;margin:0}`;
-  $('#printArea').innerHTML = receiptHTML(inv);
+function printInvoice(inv) {
+  const oldTitle = document.title;
+  $('#printArea').innerHTML = invoiceHTML(inv);
   document.title = fileBase(inv); // "Save as PDF" in the print dialog uses the title as file name
   window.addEventListener('afterprint', () => { document.title = oldTitle; $('#printArea').innerHTML = ''; }, { once: true });
   setTimeout(() => window.print(), 50);
 }
 async function downloadPdf(inv) {
   if (!window.html2canvas || !window.jspdf) return toast(t('pdfFail'), true);
-  const host = document.createElement('div'); host.className = 'offscreen'; host.innerHTML = receiptHTML(inv);
+  const host = document.createElement('div'); host.className = 'offscreen'; host.innerHTML = invoiceHTML(inv);
   document.body.appendChild(host);
   try {
-    const canvas = await html2canvas(host.firstElementChild, { scale: 3, backgroundColor: '#fff' });
-    const w = S.settings.paper === 58 ? 58 : 80, h = Math.max(30, w * canvas.height / canvas.width);
-    const pdf = new jspdf.jsPDF({ unit: 'mm', format: [w, h], orientation: h > w ? 'p' : 'l' });
-    pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, w, h);
+    const canvas = await html2canvas(host.firstElementChild, { scale: 2, backgroundColor: '#fff' });
+    const pdf = new jspdf.jsPDF({ unit: 'mm', format: 'a4', orientation: 'p' });
+    const W = 210, H = 297, h = W * canvas.height / canvas.width, img = canvas.toDataURL('image/jpeg', 0.95);
+    for (let y = 0, pg = 0; y < h - 0.5; y += H, pg++) { if (pg) pdf.addPage(); pdf.addImage(img, 'JPEG', 0, -y, W, h); }
     pdf.save(fileBase(inv) + '.pdf');
   } finally { host.remove(); }
 }
@@ -385,15 +407,13 @@ function viewSettings(v) {
   const s = S.settings;
   v.innerHTML = `<div class="pagehead"><h2>${t('settings')}</h2></div><div class="grid cols2"><section class="card"><h3>${t('shopDetails')}</h3><form id="sf">
     <label>${t('shopName')}</label><input name="shopName" value="${esc(s.shopName)}">
-    <label>${t('shopNameMr')}</label><input name="shopNameMr" value="${esc(s.shopNameMr)}">
     <label>${t('address')}</label><input name="address" value="${esc(s.address)}">
-    <div class="row"><div><label>${t('phone')}</label><input name="phone" value="${esc(s.phone)}"></div>
-    <div><label>${t('paper')}</label><select name="paper"><option value="80" ${s.paper !== 58 ? 'selected' : ''}>80 mm</option><option value="58" ${s.paper === 58 ? 'selected' : ''}>58 mm</option></select></div></div>
-    <label>${t('footer')}</label><input name="footer" value="${esc(s.footer)}">
+    <label>${t('phone')}</label><input name="phone" value="${esc(s.phone)}">
+    <label>${t('terms')}</label><textarea name="terms" rows="4">${esc(termsText())}</textarea>
     <div style="margin-top:18px"><button class="btn">${t('save')}</button></div></form></section>
     <section class="card"><h3>${t('security')}: ${esc(S.user.username)}</h3><form id="pf">
-    <label>${t('current')}</label><input type="password" name="current" autocomplete="current-password" required>
-    <label>${t('newPw')}</label><input type="password" name="next" autocomplete="new-password" minlength="6" required>
+    <label>${t('current')}</label>${pwField('name="current" autocomplete="current-password" required')}
+    <label>${t('newPw')}</label>${pwField('name="next" autocomplete="new-password" minlength="6" required')}
     <div style="margin-top:18px"><button class="btn">${t('savePw')}</button></div></form></section></div>`;
   $('#sf').onsubmit = guard(async e => {
     e.preventDefault();
