@@ -87,12 +87,12 @@ const spark = (x, y) => `<g transform="translate(${x} ${y})"><path d="M0-3v-3M0 
 const CRACKER_BODY = `<g transform="translate(34 30) rotate(45)"><path d="M-7-10h14L0-23z"/><rect x="-7" y="-10" width="14" height="22"/><path d="M-7-5q3.5-3 7 0t7 0M-7 0q3.5-3 7 0t7 0M-7 5q3.5-3 7 0t7 0"/><rect x="-2.5" y="12" width="5" height="19" rx="2.5"/></g><path d="M21 33Q15 28 12 29M30 43Q36 50 29 55"/>${spark(8, 28)}${spark(27, 58)}`;
 const CRACKER = `<svg viewBox="0 0 64 64" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true">${CRACKER_BODY}</svg>`;
 (() => { const l = document.createElement('link'); l.rel = 'icon'; l.href = 'data:image/svg+xml,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" stroke="#0c3b5a" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round">${CRACKER_BODY}</svg>`); document.head.appendChild(l); })();
-const TABS = [['dashboard', 'dashboard'], ['billing', 'billing'], ['inventory', 'inventory'], ['records', 'records']];
+const TABS = [['dashboard', 'dashboard', 'trend'], ['billing', 'billing', 'receipt'], ['inventory', 'inventory', 'box'], ['records', 'records', 'layers']];
 function renderApp() {
   const app = $('#app');
   document.title = S.user ? shopTitle() : t('appName');
   if (!S.user) return renderLogin(app);
-  const tabBtns = TABS.map(([k, l]) => `<button data-t="${k}" class="${S.tab === k ? 'on' : ''}">${t(l)}</button>`).join('');
+  const tabBtns = TABS.map(([k, l, i]) => `<button data-t="${k}" class="${S.tab === k ? 'on' : ''}"><span class="ni">${ico(i, 22)}</span><span>${t(l)}</span></button>`).join('');
   app.innerHTML = `
     <header class="top"><div class="brand"><span class="brand-ico">${CRACKER}</span><span class="brand-name">${esc(shopTitle())}</span></div>
       <nav class="topnav">${tabBtns}</nav>
@@ -346,7 +346,7 @@ function viewInventory(v) {
       ${kcard('amber', 'alert', t('lowItems'), low, low ? t('needRestock') : '')}
       ${kcard('red', 'x', t('outItems'), out, out ? t('noneLeft') : '')}
     </div>
-    <div class="cats" role="tablist">${[['all', t('all')], ['A', 'A'], ['B', 'B'], ['C', 'C']].map(([k, l]) => `<button type="button" role="tab" data-cat="${k}" class="${S.invCat === k ? 'on' : ''}">${k === 'all' ? l : t('category') + ' ' + l} <span>${k === 'all' ? P.length : P.filter(p => p.category === k).length}</span></button>`).join('')}</div>
+    <div class="cats" role="tablist">${[['all', t('all')], ['A', 'A'], ['B', 'B'], ['C', 'C']].map(([k, l]) => `<button type="button" role="tab" data-cat="${k}" class="${S.invCat === k ? 'on' : ''}">${l} <span>${k === 'all' ? P.length : P.filter(p => p.category === k).length}</span></button>`).join('')}</div>
     <div class="tools"><div class="sbox">${ico('search', 18)}<input id="iq" type="search" placeholder="${t('searchInv')}" value="${esc(S.invQ)}" autocomplete="off"></div>
       <div class="chips">${chips.map(([k, l, n]) => `<button type="button" data-fc="${k}" class="${S.invF === k ? 'on' : ''}">${l} <span>${n}</span></button>`).join('')}</div></div>
     <div id="itab"></div>`;
@@ -400,7 +400,7 @@ const deleteProduct = guard(async p => {
 });
 function productForm(p) {
   const m = modal(`<h3>${p ? t('editProduct') : t('addProduct')}</h3><form id="pf">
-    <label>${t('category')} *</label><select name="category" required><option value="">${t('selectCategory')}</option>${['A', 'B', 'C'].map(c => `<option value="${c}" ${p?.category === c ? 'selected' : ''}>${t('category')} ${c}</option>`).join('')}</select>
+    <label>${t('category')} *</label><select name="category" required><option value="">${t('selectCategory')}</option>${['A', 'B', 'C'].map(c => `<option value="${c}" ${p?.category === c ? 'selected' : ''}>${c}</option>`).join('')}</select>
     <div class="row"><div><label>${t('nameEn')} *</label><input name="name" required value="${esc(p?.name)}" maxlength="80"></div>
     <div><label>${t('nameMr')}</label><input name="nameMr" value="${esc(p?.nameMr)}" maxlength="80"></div></div>
     <div class="row"><div><label>${t('price')} *</label><input name="price" type="number" min="0" step="any" required inputmode="decimal" value="${p?.price ?? ''}"></div>
