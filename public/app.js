@@ -7,7 +7,7 @@ const money = n => (+n).toLocaleString('en-IN', { minimumFractionDigits: 2, maxi
 const S = {
   user: null, lang: (() => { try { return localStorage.getItem('lang') === 'mr' ? 'mr' : 'en'; } catch { return 'en'; } })(), tab: 'dashboard',
   products: [], settings: {},
-  cart: [], pq: {}, customer: '', phone: '', discType: 'amount', discVal: '', payment: 'cash', q: '',
+  cart: [], customer: '', phone: '', discType: 'amount', discVal: '', payment: 'cash', 
   invQ: '', invF: 'all', recFrom: '', recTo: '',
 };
 const t = k => I18N[S.lang][k] ?? I18N.en[k] ?? k;
@@ -25,6 +25,7 @@ const ICONS = {
   trash: '<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/>',
   edit: '<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13 7l4 4"/>',
   search: '<circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
   logout: '<path d="M9 4H5v16h4M16 8l4 4-4 4M20 12H9"/>',
 };
 const ico = (n, s = 20) => `<svg viewBox="0 0 24 24" width="${s}" height="${s}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[n]}</svg>`;
@@ -178,14 +179,14 @@ function renderLogin(app) {
 
 // ---------------- billing ----------------
 function calc() {
-  const subtotal = r2(S.cart.reduce((a, i) => a + i.qty * i.rate, 0));
+  const subtotal = r2(filled().reduce((a, i) => a + i.qty * i.rate, 0));
   const dv = Math.max(0, Number(S.discVal) || 0);
   const discount = Math.min(subtotal, S.discType === 'percent' ? r2(subtotal * Math.min(dv, 100) / 100) : r2(dv));
   const raw = r2(subtotal - discount), total = Math.round(raw);
   return { subtotal, discount, roundOff: r2(total - raw), total };
 }
 const prod = id => S.products.find(x => x.id === +id);
-const stepper = (k, id, val, max) => `<div class="stepper"><button type="button" data-${k}m="${id}" aria-label="&minus;">&minus;</button><input type="number" min="1" max="${max}" step="1" inputmode="numeric" data-${k}q="${id}" value="${val}" aria-label="${t('qty')}"><button type="button" data-${k}p="${id}" aria-label="+">+</button></div>`;
+const stepper = (u, val, max) => `<div class="stepper"><button type="button" data-lm="${u}" aria-label="&minus;">&minus;</button><input type="number" min="1" max="${max}" step="1" inputmode="numeric" data-lq="${u}" value="${val}" aria-label="${t('qty')}"><button type="button" data-lp="${u}" aria-label="+">+</button></div>`;
 
 function viewBilling(v) {
   v.innerHTML = `<h1 class="ptitle">${t('billing')}</h1>
@@ -194,9 +195,10 @@ function viewBilling(v) {
       <section class="card"><h2 class="ct">${t('custDetails')}</h2>
         <div class="row"><div><label>${t('customer')} *</label><input id="cn" value="${esc(S.customer)}" maxlength="80" autocomplete="off"></div>
         <div><label>${t('phone')} <em>(${t('optional')})</em></label><input id="cp" inputmode="numeric" pattern="[0-9]*" value="${esc(S.phone)}" maxlength="10" placeholder="${t('phHint')}" autocomplete="off"></div></div></section>
-      <section class="card"><div class="chead"><div><h2 class="ct">${t('allProducts')}</h2><p class="mute csub">${t('tapToAdd')}</p></div></div>
-        <div class="sbox">${ico('search', 18)}<input id="ps" type="search" placeholder="${t('searchProduct')}" value="${esc(S.q)}" autocomplete="off"></div>
-        <div id="plist"></div></section>
+      <section class="card"><div class="chead"><div><h2 class="ct">${t('billItems')}</h2><p class="mute csub">${t('addItemHint')}</p></div>
+        <button type="button" class="plus" id="addLine" title="${t('addItem')}" aria-label="${t('addItem')}">${ico('plus', 22)}</button></div>
+        <div id="lines"></div>
+        <button type="button" class="addrow" id="addLine2">${ico('plus', 18)} ${t('addItem')}</button></section>
       <section class="card"><h2 class="ct">${t('payDisc')}</h2>
         <div class="row"><div><label>${t('discountOpt')}</label>
           <div class="disc"><input id="dv" type="number" min="0" step="any" inputmode="decimal" value="${esc(S.discVal)}">
@@ -213,69 +215,63 @@ function viewBilling(v) {
     </aside></div><button id="cartbar" type="button"></button>`;
   $('#cn').oninput = e => { e.target.value = S.customer = e.target.value.replace(/[^\p{L}\p{M} .'-]/gu, ''); drawPreview(); };
   $('#cp').oninput = e => { e.target.value = S.phone = e.target.value.replace(/\D/g, '').slice(0, 10); drawPreview(); };
-  $('#ps').oninput = e => { S.q = e.target.value; drawList(); };
+  $('#addLine').onclick = $('#addLine2').onclick = addLine;
   $('#dv').oninput = e => { S.discVal = e.target.value; drawTotals(); };
   $('#pay').onchange = e => { S.payment = e.target.value; drawPreview(); };
   v.querySelectorAll('[data-d]').forEach(b => b.onclick = () => { S.discType = b.dataset.d; drawSeg(); drawTotals(); });
   v.querySelectorAll('[data-pf]').forEach(b => b.onclick = () => { setFmt(b.dataset.pf); drawPreview(); });
   $('#clr').onclick = () => { resetBill(); viewBilling(v); };
   $('#gen').onclick = guard(generate);
-  drawSeg(); drawList(); drawTotals();
+  drawSeg(); drawLines(); drawTotals();
 }
-function resetBill() { Object.assign(S, { cart: [], pq: {}, customer: '', phone: '', discVal: '', discType: 'amount', payment: 'cash', q: '' }); }
+function resetBill() { Object.assign(S, { cart: [], customer: '', phone: '', discVal: '', discType: 'amount', payment: 'cash' }); }
 function drawSeg() { document.querySelectorAll('[data-d]').forEach(b => b.classList.toggle('on', b.dataset.d === S.discType)); }
 
-function drawList() {
-  const el = $('#plist'); if (!el) return;
-  if (!S.products.length) { el.innerHTML = `<div class="empty">${t('noProducts')}</div>`; return; }
-  const q = S.q.trim().toLowerCase();
-  const list = S.products.filter(p => !q || (p.name + ' ' + (p.nameMr || '')).toLowerCase().includes(q));
-  if (!list.length) { el.innerHTML = `<div class="empty">${t('noMatch')}</div>`; return; }
-  el.innerHTML = `<div class="plist">${list.map(p => {
-    const c = S.cart.find(i => i.productId === p.id), out = p.stock <= 0;
-    const info = `<div class="pi"><b>${esc(pname(p))}</b><span class="pmeta">₹${money(p.price)}${p.unit ? ` / ${esc(p.unit)}` : ''} &middot; ${out ? `<span class="badge">${t('outOfStock')}</span>` : `${p.stock} ${t('inStock')}`}</span></div>`;
-    if (c) return `<div class="prow in">${info}<div class="pc">
-      ${stepper('c', p.id, c.qty, p.stock)}<span class="pamt" id="amt${p.id}">₹${money(c.qty * c.rate)}</span>
-      <button type="button" class="ib del" data-cx="${p.id}" title="${t('removeItem')}" aria-label="${t('removeItem')}">${ico('trash', 17)}</button></div></div>`;
-    return `<div class="prow ${out ? 'off' : ''}">${info}<div class="pc">${out ? '' : stepper('a', p.id, S.pq[p.id] || 1, p.stock)}
-      <button type="button" class="btn sm" data-add="${p.id}" ${out ? 'disabled' : ''}>+ ${t('add')}</button></div></div>`;
-  }).join('')}</div>`;
-
-  const setPq = (id, n, inp) => { n = Math.max(1, Math.min(prod(id).stock, Math.floor(n) || 1)); S.pq[id] = n; inp.value = n; };
-  el.querySelectorAll('[data-add]').forEach(b => b.onclick = () => {
-    const id = +b.dataset.add, n = Math.min(S.pq[id] || 1, prod(id).stock); delete S.pq[id]; changeQty(id, n, true);
-  });
-  el.querySelectorAll('[data-aq]').forEach(inp => {
-    const id = +inp.dataset.aq;
-    inp.oninput = () => { let n = Math.floor(Number(inp.value)); if (n > prod(id).stock) { n = prod(id).stock; inp.value = n; toast(`${pname(prod(id))}: ${t('stock')} ${n}`, true); } S.pq[id] = n >= 1 ? n : 0; };
-    inp.onchange = () => setPq(id, S.pq[id], inp);
-    inp.onkeydown = e => { if (e.key === 'Enter') { setPq(id, inp.value, inp); inp.closest('.pc').querySelector('[data-add]').click(); } };
-  });
-  el.querySelectorAll('[data-am]').forEach(b => b.onclick = () => { const id = +b.dataset.am; setPq(id, (S.pq[id] || 1) - 1, b.nextElementSibling); });
-  el.querySelectorAll('[data-ap]').forEach(b => b.onclick = () => { const id = +b.dataset.ap; setPq(id, (S.pq[id] || 1) + 1, b.previousElementSibling); });
-
-  el.querySelectorAll('[data-cm]').forEach(b => b.onclick = () => changeQty(+b.dataset.cm, -1));
-  el.querySelectorAll('[data-cp]').forEach(b => b.onclick = () => changeQty(+b.dataset.cp, 1));
-  el.querySelectorAll('[data-cx]').forEach(b => b.onclick = () => { S.cart = S.cart.filter(x => x.productId !== +b.dataset.cx); drawList(); drawTotals(); });
-  el.querySelectorAll('[data-cq]').forEach(inp => {
-    const id = +inp.dataset.cq, i = S.cart.find(x => x.productId === id), p = prod(id);
-    inp.oninput = () => {
-      let n = Math.floor(Number(inp.value)) || 0;
-      if (n > p.stock) { n = p.stock; inp.value = n; toast(`${pname(p)}: ${t('stock')} ${p.stock}`, true); }
-      i.qty = n; setAmt(id, i); drawTotals();
-    };
-    inp.onchange = () => { if (i.qty < 1) changeQty(id, -1); else drawList(); }; // drop empty / zero lines on blur
-  });
+// ---- bill lines: "+" adds a row, each row has a product dropdown and a quantity ----
+let lineSeq = 0;
+const filled = () => S.cart.filter(i => i.productId && prod(i.productId)); // lines that have a product chosen
+const lineOpts = line => S.products.map(p => {
+  const taken = S.cart.some(x => x !== line && x.productId === p.id), out = p.stock <= 0;
+  return `<option value="${p.id}" ${line.productId === p.id ? 'selected' : ''} ${taken || out ? 'disabled' : ''}>${esc(pname(p))} · ₹${money(p.price)}${p.unit ? ' / ' + esc(p.unit) : ''}${out ? ' · ' + t('outOfStock') : ''}</option>`;
+}).join('');
+function addLine() {
+  let line = S.cart.find(x => !x.productId);
+  if (!line) { line = { uid: ++lineSeq, productId: null, qty: 1, rate: 0 }; S.cart.push(line); }
+  drawLines(); drawTotals();
+  const sel = document.querySelector(`[data-ls="${line.uid}"]`); if (sel) { sel.focus(); sel.scrollIntoView({ block: 'nearest' }); }
 }
-function setAmt(id, i) { const a = $('#amt' + id); if (a) a.textContent = '₹' + money(i.qty * i.rate); }
-function changeQty(id, delta, add) {
-  const p = prod(id); if (!p) return;
-  let i = S.cart.find(x => x.productId === id);
-  if (!i) { if (!add || p.stock <= 0) return; i = { productId: id, qty: 0, rate: p.price }; S.cart.push(i); }
-  const n = i.qty + delta;
-  if (n > p.stock) { if (!i.qty) S.cart = S.cart.filter(x => x !== i); return toast(`${pname(p)}: ${t('stock')} ${p.stock}`, true); }
-  if (n < 1) S.cart = S.cart.filter(x => x !== i); else i.qty = n;
-  drawList(); drawTotals();
+function drawLines() {
+  const el = $('#lines'); if (!el) return;
+  if (!S.products.length) { el.innerHTML = `<div class="empty">${t('noProducts')}</div>`; return; }
+  if (!S.cart.length) { el.innerHTML = `<div class="empty lempty">${t('emptyCart')}</div>`; return; }
+  el.innerHTML = S.cart.map(i => {
+    const p = i.productId && prod(i.productId);
+    return `<div class="lrow ${p ? 'set' : ''}"><div class="lf"><select data-ls="${i.uid}" aria-label="${t('product')}"><option value="">${t('selectProduct')}</option>${lineOpts(i)}</select>
+      ${p ? `<span class="pmeta">₹${money(p.price)}${p.unit ? ` / ${esc(p.unit)}` : ''} &middot; ${p.stock} ${t('inStock')}</span>` : ''}</div>
+      <div class="lc">${p ? stepper(i.uid, i.qty, p.stock) : ''}<span class="pamt" id="amt${i.uid}">${p ? '₹' + money(i.qty * i.rate) : ''}</span>
+      <button type="button" class="ib del" data-lx="${i.uid}" title="${t('removeItem')}" aria-label="${t('removeItem')}">${ico('trash', 17)}</button></div></div>`;
+  }).join('');
+  const line = u => S.cart.find(x => x.uid === +u);
+  el.querySelectorAll('[data-ls]').forEach(sel => sel.onchange = () => {
+    const i = line(sel.dataset.ls), p = prod(sel.value);
+    if (p) { i.productId = p.id; i.rate = p.price; i.qty = Math.min(Math.max(1, i.qty), p.stock); } else { i.productId = null; i.rate = 0; }
+    drawLines(); drawTotals();
+  });
+  el.querySelectorAll('[data-lx]').forEach(b => b.onclick = () => { S.cart = S.cart.filter(x => x.uid !== +b.dataset.lx); drawLines(); drawTotals(); });
+  const setQty = (i, n, inp) => {
+    const p = prod(i.productId);
+    if (n > p.stock) { n = p.stock; toast(`${pname(p)}: ${t('stock')} ${p.stock}`, true); }
+    i.qty = n; if (inp) inp.value = n;
+    const a = $('#amt' + i.uid); if (a) a.textContent = '₹' + money(i.qty * i.rate);
+    drawTotals();
+  };
+  el.querySelectorAll('[data-lm]').forEach(b => b.onclick = () => { const i = line(b.dataset.lm); setQty(i, Math.max(1, i.qty - 1), b.nextElementSibling); });
+  el.querySelectorAll('[data-lp]').forEach(b => b.onclick = () => { const i = line(b.dataset.lp); setQty(i, i.qty + 1, b.previousElementSibling); });
+  el.querySelectorAll('[data-lq]').forEach(inp => {
+    const i = line(inp.dataset.lq);
+    inp.oninput = () => { const n = Math.floor(Number(inp.value)); if (n >= 1) setQty(i, n, n > prod(i.productId).stock ? inp : null); };
+    inp.onchange = () => setQty(i, Math.max(1, Math.floor(Number(inp.value)) || 1), inp);
+  });
 }
 // the bill as it would be saved, built from the current cart (shown live in the preview)
 function draftInvoice() {
@@ -283,7 +279,7 @@ function draftInvoice() {
   return { no: t('draft'), date: now.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }), createdAt: now.toISOString(), status: 'active',
     customer: S.customer.trim() || '—', phone: S.phone, payment: S.payment, discountType: S.discType, discountValue: Number(S.discVal) || 0,
     subtotal: c.subtotal, discount: c.discount, roundOff: c.roundOff, total: c.total,
-    items: S.cart.map(i => { const p = prod(i.productId); return { productId: i.productId, name: p.name, nameMr: p.nameMr || '', qty: i.qty, rate: i.rate, amount: r2(i.qty * i.rate) }; }) };
+    items: filled().map(i => { const p = prod(i.productId); return { productId: i.productId, name: p.name, nameMr: p.nameMr || '', qty: i.qty, rate: i.rate, amount: r2(i.qty * i.rate) }; }) };
 }
 function drawPreview() {
   const el = $('#pv'); if (!el) return;
@@ -294,11 +290,11 @@ function drawPreview() {
 }
 // a discount can never exceed the bill amount (₹) or 100 (%)
 function clampDiscount() {
-  const sub = r2(S.cart.reduce((a, i) => a + i.qty * i.rate, 0)), pct = S.discType === 'percent', max = pct ? 100 : sub;
+  const sub = r2(filled().reduce((a, i) => a + i.qty * i.rate, 0)), pct = S.discType === 'percent', max = pct ? 100 : sub;
   const inp = $('#dv'), hint = $('#dhint');
   if (inp) inp.max = max;
-  if (hint) hint.textContent = S.cart.length ? `${t('maxDisc')}: ${pct ? '100%' : '₹' + money(sub)}` : '';
-  if (!S.cart.length || S.discVal === '') return;
+  if (hint) hint.textContent = filled().length ? `${t('maxDisc')}: ${pct ? '100%' : '₹' + money(sub)}` : '';
+  if (!filled().length || S.discVal === '') return;
   const dv = Number(S.discVal);
   if (dv < 0 || Number.isNaN(dv)) { S.discVal = ''; if (inp) inp.value = ''; }
   else if (dv > max) { S.discVal = String(max); if (inp) inp.value = S.discVal; toast(t('discTooHigh'), true); }
@@ -306,9 +302,9 @@ function clampDiscount() {
 function drawTotals() {
   const el = $('#tot'); if (!el) return;
   clampDiscount();
-  const bar = $('#cartbar'), n = S.cart.reduce((x, i) => x + i.qty, 0), c = calc();
+  const bar = $('#cartbar'), n = filled().reduce((x, i) => x + i.qty, 0), c = calc();
   if (bar) { bar.className = n ? 'on' : ''; bar.innerHTML = `<span>${n} ${t('items')} &middot; <b>₹${money(c.total)}</b></span><span>${t('billPreview')} &rsaquo;</span>`; bar.onclick = () => $('.billside').scrollIntoView({ behavior: 'smooth', block: 'start' }); }
-  el.innerHTML = (S.cart.length ? '' : `<p class="mute pvhint">${t('previewHint')}</p>`) +
+  el.innerHTML = (filled().length ? '' : `<p class="mute pvhint">${t('previewHint')}</p>`) +
     `<div class="tot big"><span>${t('total')} <small>(${n} ${t('items')})</small></span><span>₹${money(c.total)}</span></div>`;
   drawPreview();
 }
@@ -317,7 +313,7 @@ async function generate() {
   if (!nm) { $('#cn').focus(); return toast(t('enterName'), true); }
   if (nm.length < 2 || !/^[\p{L}\p{M}][\p{L}\p{M} .'-]*$/u.test(nm)) { $('#cn').focus(); return toast(t('badName'), true); }
   if (S.phone && !/^[6-9]\d{9}$/.test(S.phone)) { $('#cp').focus(); return toast(t('badPhone'), true); }
-  if (!S.cart.length) return toast(t('emptyCart'), true);
+  if (!filled().length) return toast(t('emptyCart'), true);
   if (calc().discount < (Number(S.discVal) || 0) && S.discType === 'amount') return toast(t('discTooHigh'), true);
   S.customer = nm;
   const btn = $('#gen'); btn.disabled = true;
@@ -325,7 +321,7 @@ async function generate() {
     const inv = await api('POST', '/api/invoices', {
       customer: S.customer, phone: S.phone, payment: S.payment,
       discountType: S.discType, discountValue: Number(S.discVal) || 0,
-      items: S.cart.map(i => ({ productId: i.productId, qty: i.qty, rate: i.rate })),
+      items: filled().map(i => ({ productId: i.productId, qty: i.qty })),
     });
     inv.items.forEach(it => { const p = S.products.find(x => x.id === it.productId); if (p) p.stock -= it.qty; });
     resetBill(); renderApp(); toast(t('billCreated') + ' ' + inv.no);

@@ -35,7 +35,7 @@ pdfFail: 'PDF library not loaded (needs internet once). Use Print → Save as PD
     unitsInStock: 'Units in stock', needRestock: 'Needs restocking', noneLeft: 'Nothing left', productsSub: 'in catalogue', valueSub: 'at selling price',
     inStockBadge: 'In stock', deleteProduct: 'Delete product', deleted: 'Product deleted', noMatch: 'No products match your search',
     confirmDeleteNamed: 'Delete "{n}"? This cannot be undone.', value: 'Value', lang: 'Language', actions: 'Actions',
-    recentOrders: 'Recent orders', time: 'Time', maxDisc: 'Max', discTooHigh: 'Discount cannot be more than the bill amount', dateRangeErr: '"From" date cannot be after "To" date', more: 'more',
+    recentOrders: 'Recent orders', time: 'Time', maxDisc: 'Max', discTooHigh: 'Discount cannot be more than the bill amount', dateRangeErr: '"From" date cannot be after "To" date', more: 'more', addItem: 'Add item', addItemHint: 'Press + to add a row, then pick a product and set the quantity', selectProduct: 'Select product…',
   },
   mr: {
     authOnly: 'फक्त अधिकृत व्यक्तींसाठी. अनधिकृत प्रवेश प्रतिबंधित आहे.',
@@ -73,6 +73,6 @@ pdfFail: 'पीडीएफ लायब्ररी लोड झाली न
     unitsInStock: 'एकूण नग', needRestock: 'साठा भरावा लागेल', noneLeft: 'काहीही शिल्लक नाही', productsSub: 'यादीत', valueSub: 'विक्री किमतीनुसार',
     inStockBadge: 'उपलब्ध', deleteProduct: 'उत्पादन काढा', deleted: 'उत्पादन काढले', noMatch: 'शोधाशी जुळणारे उत्पादन नाही',
     confirmDeleteNamed: '"{n}" काढायचे? हे परत करता येणार नाही.', value: 'मूल्य', lang: 'भाषा', actions: 'क्रिया',
-    recentOrders: 'अलीकडील ऑर्डर', time: 'वेळ', maxDisc: 'कमाल', discTooHigh: 'सवलत बिलाच्या रकमेपेक्षा जास्त असू शकत नाही', dateRangeErr: '"पासून" दिनांक "पर्यंत" नंतरचा असू शकत नाही', more: 'अधिक',
+    recentOrders: 'अलीकडील ऑर्डर', time: 'वेळ', maxDisc: 'कमाल', discTooHigh: 'सवलत बिलाच्या रकमेपेक्षा जास्त असू शकत नाही', dateRangeErr: '"पासून" दिनांक "पर्यंत" नंतरचा असू शकत नाही', more: 'अधिक', addItem: 'वस्तू जोडा', addItemHint: '+ दाबा, मग उत्पादन निवडा आणि संख्या ठरवा', selectProduct: 'उत्पादन निवडा…',
   },
 };
