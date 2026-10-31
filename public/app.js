@@ -5,7 +5,7 @@ const r2 = n => Math.round((n + Number.EPSILON) * 100) / 100;
 const money = n => (+n).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 const S = {
-  user: null, lang: 'en', tab: 'billing',
+  user: null, lang: 'en', tab: 'dashboard',
   products: [], settings: {},
   cart: [], customer: '', phone: '', discType: 'amount', discVal: '', payment: 'cash', q: '',
   invQ: '', recDate: '',
@@ -65,22 +65,49 @@ document.addEventListener('click', e => {
   i.type = show ? 'text' : 'password'; b.innerHTML = show ? EYE_OFF : EYE;
 });
 
-const TABS = [['billing', 'billing'], ['inventory', 'inventory'], ['records', 'records']];
+const spark = (x, y) => `<g transform="translate(${x} ${y})"><path d="M0-3v-3M0 3v3M-3 0h-3M3 0h3M-2.1-2.1l-2-2M2.1-2.1l2-2M-2.1 2.1l-2 2M2.1 2.1l2 2" stroke-width="1.3"/></g>`;
+const CRACKER_BODY = `<g transform="translate(34 30) rotate(45)"><path d="M-7-10h14L0-23z"/><rect x="-7" y="-10" width="14" height="22"/><path d="M-7-5q3.5-3 7 0t7 0M-7 0q3.5-3 7 0t7 0M-7 5q3.5-3 7 0t7 0"/><rect x="-2.5" y="12" width="5" height="19" rx="2.5"/></g><path d="M21 33Q15 28 12 29M30 43Q36 50 29 55"/>${spark(8, 28)}${spark(27, 58)}`;
+const CRACKER = `<svg viewBox="0 0 64 64" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true">${CRACKER_BODY}</svg>`;
+(() => { const l = document.createElement('link'); l.rel = 'icon'; l.href = 'data:image/svg+xml,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" stroke="#0c3b5a" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round">${CRACKER_BODY}</svg>`); document.head.appendChild(l); })();
+const TABS = [['dashboard', 'dashboard'], ['billing', 'billing'], ['inventory', 'inventory'], ['records', 'records']];
 function renderApp() {
   const app = $('#app');
   document.title = S.user ? shopTitle() : t('appName');
   if (!S.user) return renderLogin(app);
   const tabBtns = TABS.map(([k, l]) => `<button data-t="${k}" class="${S.tab === k ? 'on' : ''}">${t(l)}</button>`).join('');
   app.innerHTML = `
-    <aside class="side"><div class="brand">${esc(shopTitle())}</div><nav class="sidenav">${tabBtns}</nav>
-      <div class="sidefoot"><div class="who">${esc(S.user.username)}</div><button class="sbtn js-out">${t('logout')}</button></div></aside>
-    <header class="mtop"><div class="title">${esc(shopTitle())}</div><button class="hbtn js-out">${t('logout')}</button></header>
-    <nav class="bnav">${tabBtns}</nav>
+    <header class="top"><div class="brand"><span class="brand-ico">${CRACKER}</span><span class="brand-name">${esc(shopTitle())}</span></div>
+      <nav class="topnav">${tabBtns}</nav>
+      <div class="topr"><span class="who">${esc(S.user.username)}</span><button class="sbtn js-out">${t('logout')}</button></div></header>
     <main id="view"></main>`;
-  app.querySelectorAll('.js-lang').forEach(b => b.onclick = () => setLang(S.lang === 'en' ? 'mr' : 'en'));
   app.querySelectorAll('.js-out').forEach(b => b.onclick = () => { setAuth(null); S.user = null; S.cart = []; renderApp(); });
   app.querySelectorAll('[data-t]').forEach(b => b.onclick = () => { S.tab = b.dataset.t; renderApp(); });
-  ({ billing: viewBilling, inventory: viewInventory, records: viewRecords })[S.tab]($('#view'));
+  ({ dashboard: viewDashboard, billing: viewBilling, inventory: viewInventory, records: viewRecords })[S.tab]($('#view'));
+}
+
+// ---------------- dashboard ----------------
+const inr = n => Math.round(n).toLocaleString('en-IN');
+async function viewDashboard(v) {
+  v.innerHTML = `<h1 class="ptitle">${t('dashboard')}</h1><div class="empty">...</div>`;
+  const d = await api('GET', '/api/dashboard').catch(e => { toast(e.message, true); return null; });
+  if (!d || S.tab !== 'dashboard') return;
+  const max = Math.max(1, ...d.days.map(x => x.sales));
+  const wd = s => new Date(s + 'T00:00:00Z').toLocaleDateString(S.lang === 'mr' ? 'mr-IN' : 'en-IN', { weekday: 'short', timeZone: 'UTC' });
+  const card = (k, val, sub) => `<div class="stat"><small>${t(k)}</small><b>${val}</b>${sub ? `<span class="mute">${sub}</span>` : ''}</div>`;
+  const none = `<div class="empty">${t('noActivity')}</div>`;
+  v.innerHTML = `<h1 class="ptitle">${t('dashboard')}</h1>
+    <div class="stats">${card('todayOrders', d.today.orders)}${card('todaySales', '₹' + inr(d.today.sales))}
+      ${card('totalSales', '₹' + inr(d.totalSales), `${d.totalOrders} ${t('ordersWord')}`)}${card('totalStock', d.totalStock, `${d.totalProducts} ${t('totalProducts').toLowerCase()}`)}</div>
+    <h2 class="sh">${t('last7')}</h2>
+    <div class="bars">${d.days.map(x => `<div class="bar" title="${dmy(x.date)}: ${x.orders} ${t('ordersWord')}">
+      <span class="bv">₹${money(x.sales).replace(/\.00$/, '')}</span><div class="bf" style="height:${Math.max(3, Math.round(x.sales / max * 100))}%"></div>
+      <span class="bl2">${wd(x.date)}</span><span class="bo mute">${x.orders} ${t('ordersWord')}</span></div>`).join('')}</div>
+    <div class="dash-cols">
+      <section><h2 class="sh">${t('recentProducts')}</h2>${d.products.length ? `<ul class="rlist">${d.products.map(p =>
+        `<li><div><b>${esc(p.name)}</b><div class="mute">${esc(p.customer)} · ${dmy(p.date)}</div></div><span class="pill">&times; ${p.qty}</span></li>`).join('')}</ul>` : none}</section>
+      <section><h2 class="sh">${t('recentCustomers')}</h2>${d.customers.length ? `<ul class="rlist">${d.customers.map(c =>
+        `<li><div><b>${esc(c.customer)}</b><div class="mute">${c.phone ? esc(c.phone) + ' · ' : ''}${dmy(c.date)} · ${c.no}</div></div><b>₹${money(c.total)}</b></li>`).join('')}</ul>` : none}</section>
+    </div>`;
 }
 
 const PROFILES = [['admin1', 'Admin 1'], ['admin2', 'Admin 2']];
@@ -89,7 +116,7 @@ function renderLogin(app) {
   if (!PROFILES.some(p => p[0] === prof)) prof = PROFILES[0][0];
   const name = S.settings.shopName || t('appName');
   app.innerHTML = `<div class="login-wrap"><div class="login">
-    <div class="login-logo">${esc(name.trim().charAt(0).toUpperCase())}</div>
+    <div class="login-logo">${CRACKER}</div>
     <h1>${esc(name)}</h1><p class="sub">${t('welcome')}</p>
     <div class="profiles">${PROFILES.map(([k, l]) => `<button type="button" data-u="${k}">${l}</button>`).join('')}</div>
     <form id="f" class="login-card"><label>${t('password')}</label>${pwField('id="p" autocomplete="current-password" required')}
