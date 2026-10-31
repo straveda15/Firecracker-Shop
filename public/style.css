@@ -5,7 +5,7 @@ body{margin:0;font:15px/1.5 Inter,"Noto Sans Devanagari",system-ui,-apple-system
 h1,h2,h3{margin:0;font-weight:600}
 b,strong{font-weight:600}
 button,input,select,textarea{font:inherit;color:inherit}
-input,select,textarea{width:100%;padding:10px 12px;border:1px solid #cbd5e1;border-radius:10px;background:#fff;min-height:44px}
+input,select,textarea{font-size:16px;width:100%;padding:10px 12px;border:1px solid #cbd5e1;border-radius:10px;background:#fff;min-height:44px}
 textarea{resize:vertical}
 input:focus,select:focus,textarea:focus{outline:3px solid var(--ring);border-color:var(--brand)}
 label{display:block;font-size:13px;font-weight:500;color:var(--mute);margin:14px 0 6px}
@@ -290,7 +290,7 @@ td.od div{margin-bottom:2px}
 .pw input{padding-right:46px}
 .eye{position:absolute;right:2px;top:2px;bottom:2px;width:42px;border:0;background:none;color:var(--mute);cursor:pointer;display:grid;place-items:center;border-radius:8px}
 .eye:hover{color:var(--brand)}
-textarea{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:#fff;font:inherit;resize:vertical}
+textarea{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:#fff;font:inherit;font-size:16px;resize:vertical}
 textarea:focus{outline:3px solid var(--ring);border-color:var(--brand)}
 .disc{display:flex}
 .disc input{border-radius:10px 0 0 10px;min-width:0}
@@ -348,3 +348,13 @@ textarea:focus{outline:3px solid var(--ring);border-color:var(--brand)}
 /* lock the page behind an open dialog (invoice view, forms, confirmations) */
 body:has(.modal){overflow:hidden}
 .modal{overscroll-behavior:contain}
+
+/* categories */
+.cats{display:flex;gap:6px;margin:0 0 14px;padding:4px;background:#f1f5f9;border:1px solid var(--line);border-radius:12px;width:fit-content;max-width:100%;overflow-x:auto}
+.cats button{border:0;background:none;padding:8px 18px;border-radius:9px;cursor:pointer;font-weight:500;color:var(--mute);white-space:nowrap}
+.cats button span{margin-left:4px;font-weight:600;font-size:12.5px}
+.cats button.on{background:#fff;color:var(--ink);box-shadow:0 1px 2px rgba(15,23,42,.1)}
+.catb{display:inline-block;vertical-align:middle;font-size:11px;font-weight:600;padding:1px 7px;border-radius:6px;background:var(--brand-l);color:var(--brand-d)}
+/* discount & payment: top-aligned so the hint line can't push the other field out of line */
+.dprow{align-items:flex-start}
+.dprow .disc,.dprow select{height:44px}

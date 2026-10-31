@@ -8,7 +8,7 @@ const S = {
   user: null, lang: (() => { try { return localStorage.getItem('lang') === 'mr' ? 'mr' : 'en'; } catch { return 'en'; } })(), tab: 'dashboard',
   products: [], settings: {},
   cart: [], customer: '', phone: '', discType: 'amount', discVal: '', payment: 'cash', 
-  invQ: '', invF: 'all', recFrom: '', recTo: '',
+  invQ: '', invF: 'all', invCat: 'all', recFrom: '', recTo: '',
 };
 const t = k => I18N[S.lang][k] ?? I18N.en[k] ?? k;
 const pname = p => (S.lang === 'mr' && p.nameMr) || p.name; // products and invoice lines both carry name + nameMr
@@ -200,7 +200,7 @@ function viewBilling(v) {
         <div id="lines"></div>
         <button type="button" class="addrow" id="addLine2">${ico('plus', 18)} ${t('addItem')}</button></section>
       <section class="card"><h2 class="ct">${t('payDisc')}</h2>
-        <div class="row"><div><label>${t('discountOpt')}</label>
+        <div class="row dprow"><div><label>${t('discountOpt')}</label>
           <div class="disc"><input id="dv" type="number" min="0" step="any" inputmode="decimal" value="${esc(S.discVal)}">
           <div class="seg"><button type="button" data-d="amount">₹</button><button type="button" data-d="percent">%</button></div></div>
           <p class="mute dhint" id="dhint"></p></div>
@@ -346,24 +346,26 @@ function viewInventory(v) {
       ${kcard('amber', 'alert', t('lowItems'), low, low ? t('needRestock') : '')}
       ${kcard('red', 'x', t('outItems'), out, out ? t('noneLeft') : '')}
     </div>
+    <div class="cats" role="tablist">${[['all', t('all')], ['A', 'A'], ['B', 'B'], ['C', 'C']].map(([k, l]) => `<button type="button" role="tab" data-cat="${k}" class="${S.invCat === k ? 'on' : ''}">${k === 'all' ? l : t('category') + ' ' + l} <span>${k === 'all' ? P.length : P.filter(p => p.category === k).length}</span></button>`).join('')}</div>
     <div class="tools"><div class="sbox">${ico('search', 18)}<input id="iq" type="search" placeholder="${t('searchInv')}" value="${esc(S.invQ)}" autocomplete="off"></div>
       <div class="chips">${chips.map(([k, l, n]) => `<button type="button" data-fc="${k}" class="${S.invF === k ? 'on' : ''}">${l} <span>${n}</span></button>`).join('')}</div></div>
     <div id="itab"></div>`;
   $('#add').onclick = () => productForm();
   $('#iq').oninput = e => { S.invQ = e.target.value; drawInvTable(); };
+  v.querySelectorAll('[data-cat]').forEach(b => b.onclick = () => { S.invCat = b.dataset.cat; v.querySelectorAll('[data-cat]').forEach(x => x.classList.toggle('on', x === b)); drawInvTable(); });
   v.querySelectorAll('[data-fc]').forEach(b => b.onclick = () => { S.invF = b.dataset.fc; v.querySelectorAll('[data-fc]').forEach(x => x.classList.toggle('on', x === b)); drawInvTable(); });
   drawInvTable();
 }
 function drawInvTable() {
   const el = $('#itab'), q = S.invQ.trim().toLowerCase();
   if (!S.products.length) { el.innerHTML = `<div class="empty">${t('noProducts')}</div>`; return; }
-  const list = S.products.filter(p => (!q || (p.name + ' ' + (p.nameMr || '')).toLowerCase().includes(q)) && (S.invF === 'all' || stockState(p) === S.invF));
+  const list = S.products.filter(p => (!q || (p.name + ' ' + (p.nameMr || '')).toLowerCase().includes(q)) && (S.invF === 'all' || stockState(p) === S.invF) && (S.invCat === 'all' || p.category === S.invCat));
   if (!list.length) { el.innerHTML = `<div class="empty">${t('noMatch')}</div>`; return; }
   const tone = { ok: 'sky', low: 'amber', out: 'red' };
   el.innerHTML = `<div class="table-wrap"><table class="itable"><thead><tr><th>${t('product')}</th><th class="n">${t('price')}</th><th class="n">${t('stock')}</th><th class="n">${t('value')}</th><th></th></tr></thead><tbody>
     ${list.map(p => {
       const s = stockState(p), alt = S.lang === 'mr' ? p.name : p.nameMr;
-      return `<tr><td><div class="pcell"><span class="av ${tone[s]}">${esc(initial(pname(p)))}</span><div><b>${esc(pname(p))}</b>${alt ? `<div class="mute">${esc(alt)}</div>` : ''}</div></div></td>
+      return `<tr><td><div class="pcell"><span class="av ${tone[s]}">${esc(initial(pname(p)))}</span><div><b>${esc(pname(p))}</b>${p.category ? ` <span class="catb">${p.category}</span>` : ''}${alt ? `<div class="mute">${esc(alt)}</div>` : ''}</div></div></td>
       <td class="n" data-l="${t('price')}">₹${money(p.price)}${p.unit ? ` <span class="mute">/ ${esc(p.unit)}</span>` : ''}</td>
       <td class="n" data-l="${t('stock')}"><b>${p.stock}</b> ${s === 'out' ? `<span class="badge">${t('outOfStock')}</span>` : s === 'low' ? `<span class="badge warn">${t('low')}</span>` : `<span class="badge ok">${t('inStockBadge')}</span>`}</td>
       <td class="n" data-l="${t('value')}">₹${money(p.stock * p.price)}</td>
@@ -398,6 +400,7 @@ const deleteProduct = guard(async p => {
 });
 function productForm(p) {
   const m = modal(`<h3>${p ? t('editProduct') : t('addProduct')}</h3><form id="pf">
+    <label>${t('category')} *</label><select name="category" required><option value="">${t('selectCategory')}</option>${['A', 'B', 'C'].map(c => `<option value="${c}" ${p?.category === c ? 'selected' : ''}>${t('category')} ${c}</option>`).join('')}</select>
     <div class="row"><div><label>${t('nameEn')} *</label><input name="name" required value="${esc(p?.name)}" maxlength="80"></div>
     <div><label>${t('nameMr')}</label><input name="nameMr" value="${esc(p?.nameMr)}" maxlength="80"></div></div>
     <div class="row"><div><label>${t('price')} *</label><input name="price" type="number" min="0" step="any" required inputmode="decimal" value="${p?.price ?? ''}"></div>
