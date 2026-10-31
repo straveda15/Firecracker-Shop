@@ -116,7 +116,7 @@ main{padding:28px 32px 48px;max-width:1360px;margin:0 auto;min-height:calc(100vh
 /* new bill */
 .bill-cols{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,560px);gap:20px;align-items:start}
 .bill-left{display:grid;gap:16px;min-width:0}
-.bill-right{position:sticky;top:84px;max-height:calc(100vh - 100px);overflow:auto}
+.bill-right{position:sticky;top:84px}
 .sbox{position:relative;flex:1;min-width:200px}
 .sbox svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--mute);pointer-events:none}
 .sbox input{padding-left:38px}
@@ -209,7 +209,7 @@ td.od div{margin-bottom:2px}
 @media(max-width:1100px){
   .bill-cols{grid-template-columns:minmax(0,1fr)}
   .bill-right{min-width:0}
-  .bill-right{position:static;max-height:none;overflow:visible}
+  .bill-right{position:static}
   .pvwrap{max-height:none}
   .kcards.c5{grid-template-columns:repeat(3,minmax(0,1fr))}
 }
@@ -332,3 +332,15 @@ textarea:focus{outline:3px solid var(--ring);border-color:var(--brand)}
 .receipt .sh{text-transform:none;letter-spacing:0;color:#000;border:0;padding:0;margin:0;font-size:15px;font-weight:700}
 .chead .fmt{margin-bottom:0}
 .seg.sm button{white-space:nowrap}
+
+.dhint{margin:6px 0 0;font-size:12.5px}
+.filters{display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap;padding:14px 18px;margin-bottom:18px}
+.filters .chips{align-self:center}
+.filters .fl{min-width:0}
+.filters label{margin:0 0 4px}
+.filters input[type=date]{width:auto;min-width:160px}
+.receipt .line{align-items:flex-start}
+.receipt .line span:first-child{flex:none;white-space:nowrap}
+.receipt .line span:last-child{text-align:right;overflow-wrap:anywhere;min-width:0}
+.receipt .it{margin:3px 0}
+.receipt .in{overflow-wrap:anywhere}

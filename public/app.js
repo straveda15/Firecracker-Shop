@@ -8,7 +8,7 @@ const S = {
   user: null, lang: (() => { try { return localStorage.getItem('lang') === 'mr' ? 'mr' : 'en'; } catch { return 'en'; } })(), tab: 'dashboard',
   products: [], settings: {},
   cart: [], pq: {}, customer: '', phone: '', discType: 'amount', discVal: '', payment: 'cash', q: '',
-  invQ: '', invF: 'all', recDate: '',
+  invQ: '', invF: 'all', recFrom: '', recTo: '',
 };
 const t = k => I18N[S.lang][k] ?? I18N.en[k] ?? k;
 const pname = p => (S.lang === 'mr' && p.nameMr) || p.name; // products and invoice lines both carry name + nameMr
@@ -60,6 +60,7 @@ const applyBoot = d => { S.user = { username: d.username, name: d.name }; S.prod
 const upsertProduct = p => {
   const i = S.products.findIndex(x => x.id === p.id);
   if (i >= 0) S.products[i] = p; else S.products.push(p);
+  S.cart.forEach(c => { if (c.productId === p.id) c.rate = p.price; }); // bills always use the catalogue price
   S.products.sort((x, y) => x.name < y.name ? -1 : x.name > y.name ? 1 : 0);
 };
 // disables the form's primary button while a request is running (no double submits, visible feedback)
@@ -135,8 +136,10 @@ async function viewDashboard(v) {
         }).join('')}</div></div>
     </section>
     <div class="dash-cols">
-      <section class="card"><div class="chead"><h2 class="ct">${t('recentProducts')}</h2></div>${d.products.length ? `<ul class="rlist">${d.products.map(p =>
-        `<li><span class="av sky">${ico('box', 18)}</span><div class="rl"><b>${esc(pname(p))}</b><div class="mute">${esc(p.customer)} · ${dmy(p.date)}</div></div><span class="pill">&times; ${p.qty}</span></li>`).join('')}</ul>` : none}</section>
+      <section class="card"><div class="chead"><h2 class="ct">${t('recentOrders')}</h2></div>${d.orders.length ? `<ul class="rlist">${d.orders.map(o => {
+        const names = o.items.slice(0, 2).map(it => `${esc(pname(it))} &times; ${it.qty}`).join(', '), extra = o.items.length - 2;
+        return `<li><span class="av sky">${ico('receipt', 18)}</span><div class="rl"><b>${o.no} · ${esc(o.customer)}</b><div class="mute">${names}${extra > 0 ? ` +${extra} ${t('more')}` : ''} · ${dmy(o.date)}</div></div><b class="ramt">₹${money(o.total)}</b></li>`;
+      }).join('')}</ul>` : none}</section>
       <section class="card"><div class="chead"><h2 class="ct">${t('recentCustomers')}</h2></div>${d.customers.length ? `<ul class="rlist">${d.customers.map(c =>
         `<li><span class="av green">${esc(initial(c.customer))}</span><div class="rl"><b>${esc(c.customer)}</b><div class="mute">${c.phone ? esc(c.phone) + ' · ' : ''}${dmy(c.date)} · ${c.no}</div></div><b class="ramt">₹${money(c.total)}</b></li>`).join('')}</ul>` : none}</section>
     </div>`;
@@ -197,7 +200,8 @@ function viewBilling(v) {
       <section class="card"><h2 class="ct">${t('payDisc')}</h2>
         <div class="row"><div><label>${t('discountOpt')}</label>
           <div class="disc"><input id="dv" type="number" min="0" step="any" inputmode="decimal" value="${esc(S.discVal)}">
-          <div class="seg"><button type="button" data-d="amount">₹</button><button type="button" data-d="percent">%</button></div></div></div>
+          <div class="seg"><button type="button" data-d="amount">₹</button><button type="button" data-d="percent">%</button></div></div>
+          <p class="mute dhint" id="dhint"></p></div>
           <div><label>${t('payment')}</label><select id="pay">${['cash', 'upi', 'card'].map(p => `<option value="${p}" ${S.payment === p ? 'selected' : ''}>${t(p)}</option>`).join('')}</select></div></div></section>
     </div>
     <aside class="bill-right billside card">
@@ -231,7 +235,6 @@ function drawList() {
     const c = S.cart.find(i => i.productId === p.id), out = p.stock <= 0;
     const info = `<div class="pi"><b>${esc(pname(p))}</b><span class="pmeta">₹${money(p.price)}${p.unit ? ` / ${esc(p.unit)}` : ''} &middot; ${out ? `<span class="badge">${t('outOfStock')}</span>` : `${p.stock} ${t('inStock')}`}</span></div>`;
     if (c) return `<div class="prow in">${info}<div class="pc">
-      <div class="rate-box" title="${t('rate')}">₹<input type="number" min="0" step="any" inputmode="decimal" data-cr="${p.id}" value="${c.rate}" aria-label="${t('rate')}"></div>
       ${stepper('c', p.id, c.qty, p.stock)}<span class="pamt" id="amt${p.id}">₹${money(c.qty * c.rate)}</span>
       <button type="button" class="ib del" data-cx="${p.id}" title="${t('removeItem')}" aria-label="${t('removeItem')}">${ico('trash', 17)}</button></div></div>`;
     return `<div class="prow ${out ? 'off' : ''}">${info}<div class="pc">${out ? '' : stepper('a', p.id, S.pq[p.id] || 1, p.stock)}
@@ -263,10 +266,6 @@ function drawList() {
     };
     inp.onchange = () => { if (i.qty < 1) changeQty(id, -1); else drawList(); }; // drop empty / zero lines on blur
   });
-  el.querySelectorAll('[data-cr]').forEach(inp => {
-    const id = +inp.dataset.cr, i = S.cart.find(x => x.productId === id);
-    inp.oninput = () => { i.rate = Math.max(0, Number(inp.value) || 0); setAmt(id, i); drawTotals(); };
-  });
 }
 function setAmt(id, i) { const a = $('#amt' + id); if (a) a.textContent = '₹' + money(i.qty * i.rate); }
 function changeQty(id, delta, add) {
@@ -293,8 +292,20 @@ function drawPreview() {
   const node = el.firstElementChild;
   node.style.zoom = Math.min(1, el.clientWidth / node.offsetWidth); // scale the paper down to the panel width
 }
+// a discount can never exceed the bill amount (₹) or 100 (%)
+function clampDiscount() {
+  const sub = r2(S.cart.reduce((a, i) => a + i.qty * i.rate, 0)), pct = S.discType === 'percent', max = pct ? 100 : sub;
+  const inp = $('#dv'), hint = $('#dhint');
+  if (inp) inp.max = max;
+  if (hint) hint.textContent = S.cart.length ? `${t('maxDisc')}: ${pct ? '100%' : '₹' + money(sub)}` : '';
+  if (!S.cart.length || S.discVal === '') return;
+  const dv = Number(S.discVal);
+  if (dv < 0 || Number.isNaN(dv)) { S.discVal = ''; if (inp) inp.value = ''; }
+  else if (dv > max) { S.discVal = String(max); if (inp) inp.value = S.discVal; toast(t('discTooHigh'), true); }
+}
 function drawTotals() {
   const el = $('#tot'); if (!el) return;
+  clampDiscount();
   const bar = $('#cartbar'), n = S.cart.reduce((x, i) => x + i.qty, 0), c = calc();
   if (bar) { bar.className = n ? 'on' : ''; bar.innerHTML = `<span>${n} ${t('items')} &middot; <b>₹${money(c.total)}</b></span><span>${t('billPreview')} &rsaquo;</span>`; bar.onclick = () => $('.billside').scrollIntoView({ behavior: 'smooth', block: 'start' }); }
   el.innerHTML = (S.cart.length ? '' : `<p class="mute pvhint">${t('previewHint')}</p>`) +
@@ -307,6 +318,7 @@ async function generate() {
   if (nm.length < 2 || !/^[\p{L}\p{M}][\p{L}\p{M} .'-]*$/u.test(nm)) { $('#cn').focus(); return toast(t('badName'), true); }
   if (S.phone && !/^[6-9]\d{9}$/.test(S.phone)) { $('#cp').focus(); return toast(t('badPhone'), true); }
   if (!S.cart.length) return toast(t('emptyCart'), true);
+  if (calc().discount < (Number(S.discVal) || 0) && S.discType === 'amount') return toast(t('discTooHigh'), true);
   S.customer = nm;
   const btn = $('#gen'); btn.disabled = true;
   try {
@@ -433,16 +445,32 @@ function stockForm(p) {
 }
 
 // ---------------- records ----------------
+const istDate = (d = new Date()) => d.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+const recPresets = () => {
+  const today = istDate(), yest = istDate(new Date(Date.now() - 864e5));
+  return [['all', t('all'), '', ''], ['today', t('today'), today, today], ['yest', t('yesterday'), yest, yest], ['month', t('thisMonth'), today.slice(0, 8) + '01', today]];
+};
 async function viewRecords(v) {
-  v.innerHTML = `<div class="pagehead"><h1 class="ptitle">${t('records')}</h1>
-    <div class="datef"><label for="rd">${t('date')}</label><input type="date" id="rd" value="${S.recDate}"><button class="link" id="rall" ${S.recDate ? '' : 'hidden'}>${t('showAll')}</button></div></div>
+  const today = istDate();
+  v.innerHTML = `<div class="pagehead"><h1 class="ptitle">${t('records')}</h1></div>
+    <div class="card filters"><div class="chips" id="rchips">${recPresets().map(([k, l]) => `<button type="button" data-rp="${k}">${l}</button>`).join('')}</div>
+      <div class="fl"><label for="rf">${t('from')}</label><input type="date" id="rf" max="${today}" value="${S.recFrom}"></div>
+      <div class="fl"><label for="rt">${t('to')}</label><input type="date" id="rt" max="${today}" value="${S.recTo}"></div></div>
     <div id="rbody"><div class="empty">...</div></div>`;
-  $('#rd').onchange = e => { S.recDate = e.target.value; viewRecords(v); };
-  $('#rall').onclick = () => { S.recDate = ''; viewRecords(v); };
-  await guard(drawRecords)();
+  const sync = () => {
+    $('#rf').value = S.recFrom; $('#rt').value = S.recTo;
+    $('#rt').min = S.recFrom || ''; $('#rf').max = S.recTo || today;
+    const cur = recPresets().find(([, , f, t2]) => f === S.recFrom && t2 === S.recTo);
+    v.querySelectorAll('[data-rp]').forEach(b => b.classList.toggle('on', !!cur && b.dataset.rp === cur[0]));
+  };
+  const load = () => { sync(); return guard(drawRecords)(); };
+  v.querySelectorAll('[data-rp]').forEach(b => b.onclick = () => { const [, , f, t2] = recPresets().find(x => x[0] === b.dataset.rp); S.recFrom = f; S.recTo = t2; load(); });
+  $('#rf').onchange = e => { S.recFrom = e.target.value; if (S.recFrom && S.recTo && S.recFrom > S.recTo) { S.recTo = S.recFrom; toast(t('dateRangeErr'), true); } load(); };
+  $('#rt').onchange = e => { S.recTo = e.target.value; if (S.recFrom && S.recTo && S.recFrom > S.recTo) { S.recFrom = S.recTo; toast(t('dateRangeErr'), true); } load(); };
+  await load();
 }
 async function drawRecords() {
-  const qs = new URLSearchParams({ from: S.recDate, to: S.recDate });
+  const qs = new URLSearchParams({ from: S.recFrom, to: S.recTo });
   const [sum, list] = await Promise.all([api('GET', '/api/summary?' + qs), api('GET', '/api/invoices?' + qs)]);
   const el = $('#rbody'); if (!el) return;
   el.innerHTML = `<div class="kcards c3">
@@ -503,21 +531,21 @@ const fileBase = inv => (inv.customer || '').replace(/[\\/:*?"<>|\x00-\x1f]+/g, 
 
 // ---- thermal receipt (58 / 80 mm rolls) ----
 function receiptHTML(inv, w) {
-  const s = S.settings, d = new Date(inv.createdAt);
+  const s = S.settings, d = new Date(inv.createdAt), time = isNaN(d) ? '' : d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' });
   const L = (x, y, cls = '') => `<div class="line ${cls}"><span>${x}</span><span>${y}</span></div>`;
   const terms = termsText().split('\n').map(x => x.trim()).filter(Boolean);
   return `<div class="receipt w${w}">
     <div class="c sh">${esc(shopTitle())}</div>
     ${s.address ? `<div class="c">${esc(s.address)}</div>` : ''}${s.phone ? `<div class="c">${t('ph')}: ${esc(s.phone)}</div>` : ''}
     <hr><div class="c b">${t('invoice')}</div>${inv.status === 'void' ? `<div class="void">${t('cancelled').toUpperCase()}</div>` : ''}
-    ${L(t('invNo'), inv.no)}${L(t('invDate'), `${dmy(inv.date)} ${d.toTimeString().slice(0, 5)}`)}
+    ${L(t('billNo'), inv.no)}${L(t('date'), dmy(inv.date))}${time ? L(t('time'), time) : ''}
     ${L(t('customer'), esc(inv.customer))}${inv.phone ? L(t('ph'), esc(inv.phone)) : ''}
-    <hr><table><tr><th>${t('product')}</th><th class="r">${t('qty')}</th><th class="r">${t('rate')}</th><th class="r">${t('amount')}</th></tr>
-    ${inv.items.map(i => `<tr><td>${esc(pname(i))}</td><td class="r">${i.qty}</td><td class="r">${money(i.rate)}</td><td class="r">${money(i.amount)}</td></tr>`).join('')}</table>
+    <hr>${L(t('product'), t('amount'), 'b')}
+    ${inv.items.map(i => `<div class="it"><div class="in">${esc(pname(i))}</div>${L(`${i.qty} &times; ${money(i.rate)}`, money(i.amount))}</div>`).join('')}
     <hr>${L(t('subtotal'), money(inv.subtotal))}
     ${inv.discount ? L(`${t('discount')}${inv.discountType === 'percent' ? ` (${inv.discountValue}%)` : ''}`, '-' + money(inv.discount)) : ''}
     ${inv.roundOff ? L(t('roundOff'), (inv.roundOff > 0 ? '+' : '-') + money(Math.abs(inv.roundOff))) : ''}
-    <hr>${L(t('grand'), '₹' + money(inv.total), 'b sh')}<hr>
+    <hr>${L(t('total'), '₹' + money(inv.total), 'b sh')}<hr>
     ${L(t('payMode'), t(inv.payment))}
     ${terms.length ? `<hr><div>${terms.map(x => esc(x)).join('<br>')}</div>` : ''}
     <hr><div class="c">${t('thanks')}</div></div>`;
