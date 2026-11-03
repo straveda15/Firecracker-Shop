@@ -612,7 +612,11 @@ async function lanPrint(inv, mm) {
   try {
     const res = await fetch(`https://${ip}/cgi-bin/epos/service.cgi?devid=local_printer&timeout=10000`, { method: 'POST', headers: { 'Content-Type': 'text/xml; charset=utf-8', SOAPAction: '""' }, body: xml, signal: ctl.signal });
     text = await res.text();
-  } catch { throw new Error(t('printUnreachable').replace('{ip}', ip)); }
+  } catch {
+    // tell "printer not reachable" apart from "reachable, but the browser/printer refuses requests from this site"
+    const seen = await fetch(`https://${ip}/`, { mode: 'no-cors', signal: AbortSignal.timeout(5000) }).then(() => true, () => false);
+    throw new Error(t(seen ? 'printBlocked' : 'printUnreachable').replace('{ip}', ip));
+  }
   finally { clearTimeout(timer); }
   if (!/success="true"/.test(text)) throw new Error(t('printError'));
   toast(t('printed'));
