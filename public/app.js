@@ -27,6 +27,7 @@ const ICONS = {
   search: '<circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
   logout: '<path d="M9 4H5v16h4M16 8l4 4-4 4M20 12H9"/>',
+  printer: '<path d="M7 9V3h10v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M7 14h10v7H7z"/>',
 };
 const ico = (n, s = 20) => `<svg viewBox="0 0 24 24" width="${s}" height="${s}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[n]}</svg>`;
 
@@ -96,13 +97,14 @@ function renderApp() {
   app.innerHTML = `
     <header class="top"><div class="brand"><span class="brand-ico">${CRACKER}</span><span class="brand-name">${esc(shopTitle())}</span></div>
       <nav class="topnav">${tabBtns}</nav>
-      <div class="topr">${langSwitch()}<span class="who">${esc(S.user.username)}</span><button class="sbtn js-out" title="${t('logout')}" aria-label="${t('logout')}">${ico('logout', 17)}<span class="lt">${t('logout')}</span></button></div></header>
+      <div class="topr">${langSwitch()}${S.settings.directPrint ? `<button class="sbtn js-prt" title="${t('printer')}" aria-label="${t('printer')}">${ico('printer', 17)}<span class="lt">${t('printer')}</span></button>` : ''}<span class="who">${esc(S.user.username)}</span><button class="sbtn js-out" title="${t('logout')}" aria-label="${t('logout')}">${ico('logout', 17)}<span class="lt">${t('logout')}</span></button></div></header>
     <main id="view"></main>`;
   bindLang(app);
   app.querySelectorAll('.js-out').forEach(b => b.onclick = async () => {
     if (!await ask(t('logoutTitle'), t('logoutConfirm'), t('logout'), 'primary')) return;
     setAuth(null); S.user = null; S.cart = []; renderApp();
   });
+  app.querySelectorAll('.js-prt').forEach(b => b.onclick = printerPanel);
   app.querySelectorAll('[data-t]').forEach(b => b.onclick = () => { S.tab = b.dataset.t; renderApp(); });
   ({ dashboard: viewDashboard, billing: viewBilling, inventory: viewInventory, records: viewRecords })[S.tab]($('#view'));
 }
@@ -583,43 +585,76 @@ function showInvoice(inv, fresh) {
     m.remove(); if (S.tab === 'records') drawRecords(); toast(t('done'));
   });
 }
-// One-tap printing: the receipt is drawn as an image and sent over the shop network straight to the Epson
-// printer (ePOS-Print), so no dialog appears. Without a printer address it falls back to the browser dialog.
+// One-tap printing: the receipt is drawn as an image, turned into printer commands and queued on the server.
+// The printer collects the job itself and confirms it; only then do we report success. Falls back to the browser print dialog.
+let printBusy = false;
 async function printInvoice(inv) {
   const f = getFmt();
-  if (f === 'a4' || !S.settings.printerIp || !window.html2canvas) return browserPrint(inv);
-  try { await lanPrint(inv, +f); } catch (e) { toast(e.message, true); }
+  if (f === 'a4' || !S.settings.directPrint || !window.html2canvas) return browserPrint(inv);
+  if (printBusy) return;
+  printBusy = true;
+  try { await queuePrint(inv, +f); } catch (e) { toast(e.message, true); } finally { printBusy = false; }
 }
-async function lanPrint(inv, mm) {
+async function queuePrint(inv, mm) {
   const dots = mm === 58 ? 384 : 576, host = document.createElement('div');
   host.className = 'offscreen'; host.innerHTML = docHTML(inv); document.body.appendChild(host);
   let canvas;
   try { const el = host.firstElementChild; canvas = await html2canvas(el, { scale: dots / el.offsetWidth, backgroundColor: '#fff' }); }
   finally { host.remove(); }
-  // black / white bitmap, 8 pixels per byte, as ePOS-Print expects
-  const w = dots, h = canvas.height, flat = document.createElement('canvas'), bytes = new Uint8Array((w >> 3) * h);
+  // black / white bitmap -> ESC/POS raster bands (GS v 0), then feed and cut
+  const w = dots, h = canvas.height, rb = w >> 3, flat = document.createElement('canvas');
   flat.width = w; flat.height = h; const c = flat.getContext('2d'); c.fillStyle = '#fff'; c.fillRect(0, 0, w, h); c.drawImage(canvas, 0, 0, w, h);
-  const px = c.getImageData(0, 0, w, h).data;
-  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-    const i = (y * w + x) * 4;
-    if (0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2] < 170) bytes[y * (w >> 3) + (x >> 3)] |= 0x80 >> (x & 7);
+  const px = c.getImageData(0, 0, w, h).data, out = [0x1b, 0x40];
+  for (let y0 = 0; y0 < h; y0 += 128) {
+    const bh = Math.min(128, h - y0);
+    out.push(0x1d, 0x76, 0x30, 0, rb & 255, rb >> 8, bh & 255, bh >> 8);
+    for (let y = y0; y < y0 + bh; y++) for (let bx = 0; bx < rb; bx++) {
+      let b = 0;
+      for (let k = 0; k < 8; k++) { const i = (y * w + bx * 8 + k) * 4; if (0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2] < 170) b |= 0x80 >> k; }
+      out.push(b);
+    }
   }
-  let bin = ''; for (let i = 0; i < bytes.length; i += 8192) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 8192));
-  const xml = `<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"><s:Body><epos-print xmlns="http://www.epson-pos.com/schemas/2011/03/epos-print"><text align="left"/><image width="${w}" height="${h}" color="color_1" mode="mono">${btoa(bin)}</image><feed line="3"/><cut type="feed"/></epos-print></s:Body></s:Envelope>`;
-  const ip = S.settings.printerIp, ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 15000);
+  out.push(0x1b, 0x64, 3, 0x1d, 0x56, 0x42, 0); // feed 3 lines, partial cut
+  const bytes = Uint8Array.from(out); let bin = '';
+  for (let i = 0; i < bytes.length; i += 8192) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 8192));
+  const job = await api('POST', '/api/print', { data: btoa(bin), invoiceId: inv.id }).catch(e => { throw new Error(/offline/i.test(e.message) ? t('printerOffline') : e.message); });
+  await trackJob(job.id);
+}
+// waits for the printer's own confirmation (it polls the server every few seconds)
+async function trackJob(id) {
   toast(t('printSent'));
-  let text;
-  try {
-    const res = await fetch(`https://${ip}/cgi-bin/epos/service.cgi?devid=local_printer&timeout=10000`, { method: 'POST', headers: { 'Content-Type': 'text/xml; charset=utf-8', SOAPAction: '""' }, body: xml, signal: ctl.signal });
-    text = await res.text();
-  } catch {
-    // tell "printer not reachable" apart from "reachable, but the browser/printer refuses requests from this site"
-    const seen = await fetch(`https://${ip}/`, { mode: 'no-cors', signal: AbortSignal.timeout(5000) }).then(() => true, () => false);
-    throw new Error(t(seen ? 'printBlocked' : 'printUnreachable').replace('{ip}', ip));
+  for (let n = 0; n < 30; n++) {
+    await new Promise(r => setTimeout(r, 2000));
+    const j = await api('GET', '/api/print/' + id);
+    if (j.status === 'printed') return toast(t('printed'));
+    if (j.status === 'failed') throw new Error(t('printError') + (j.error ? ': ' + j.error : ''));
   }
-  finally { clearTimeout(timer); }
-  if (!/success="true"/.test(text)) throw new Error(t('printError'));
-  toast(t('printed'));
+  throw new Error(t('printWait'));
+}
+// Printer panel: connection state, test print and the last prints (with retry for failed ones)
+const ago = ms => { const s = Math.max(0, Math.round((Date.now() - ms) / 1000)); return s < 60 ? s + 's' : s < 3600 ? Math.round(s / 60) + ' min' : new Date(ms).toLocaleString(locale(), { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }); };
+async function printerPanel() {
+  const m = modal('<h3>' + t('printer') + '</h3><div class="pp"></div>', 'wide');
+  let alive = true; const obs = new MutationObserver(() => { if (!m.isConnected) { alive = false; obs.disconnect(); } }); obs.observe(document.body, { childList: true });
+  const draw = async () => {
+    let d; try { d = await api('GET', '/api/printer/status'); } catch (e) { return toast(e.message, true); }
+    if (!alive) return;
+    const stName = { queued: 'stQueued', processing: 'stProcessing', printed: 'stPrinted', failed: 'stFailed' };
+    m.querySelector('.pp').innerHTML = `
+      <div class="pstat"><span class="pdot ${d.online ? 'on' : ''}"></span><div><b>Epson TM-m30III</b><small>${d.online ? t('printerOnline') : d.seen ? t('printerOffline') : t('printerNever')}${d.seen ? ' · ' + t('lastSeen') + ' ' + ago(d.seen) : ''}${d.name ? ' · ' + esc(d.name) : ''}</small></div></div>
+      <div class="row"><button class="btn" data-test ${d.online ? '' : 'disabled'}>${t('testPrint')}</button><button class="btn sec" data-ref>${t('refresh')}</button></div>
+      <h4>${t('printHistory')}</h4>
+      ${d.jobs.length ? d.jobs.map(j => `<div class="pjob"><div><b>${j.kind === 'test' ? t('jobTest') : t('jobReceipt').replace('{n}', j.invoiceId ?? '')}</b><small>${ago(j.createdAt)}${j.error ? ' · ' + esc(j.error) : ''}</small></div>
+        <span class="pst ${j.status}">${t(stName[j.status])}</span>${j.status === 'failed' ? `<button class="btn sec sm" data-retry="${j.id}">${t('retry')}</button>` : ''}</div>`).join('') : `<p class="mute">${t('noJobs')}</p>`}
+      <div class="row" style="margin-top:14px"><button class="btn sec" data-x>${t('close')}</button></div>`;
+    const pp = m.querySelector('.pp');
+    pp.querySelector('[data-x]').onclick = () => m.remove();
+    pp.querySelector('[data-ref]').onclick = draw;
+    pp.querySelector('[data-test]').onclick = guard(async () => { const j = await api('POST', '/api/printer/test'); draw(); await trackJob(j.id); draw(); });
+    pp.querySelectorAll('[data-retry]').forEach(b => b.onclick = guard(async () => { const j = await api('POST', `/api/print/${b.dataset.retry}/retry`); draw(); await trackJob(j.id); draw(); }));
+  };
+  draw();
+  const timer = setInterval(() => { if (!alive) return clearInterval(timer); draw(); }, 8000);
 }
 function browserPrint(inv) {
   const oldTitle = document.title, f = getFmt();
