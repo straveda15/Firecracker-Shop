@@ -99,7 +99,10 @@ function renderApp() {
       <div class="topr">${langSwitch()}<span class="who">${esc(S.user.username)}</span><button class="sbtn js-out" title="${t('logout')}" aria-label="${t('logout')}">${ico('logout', 17)}<span class="lt">${t('logout')}</span></button></div></header>
     <main id="view"></main>`;
   bindLang(app);
-  app.querySelectorAll('.js-out').forEach(b => b.onclick = () => { setAuth(null); S.user = null; S.cart = []; renderApp(); });
+  app.querySelectorAll('.js-out').forEach(b => b.onclick = async () => {
+    if (!await ask(t('logoutTitle'), t('logoutConfirm'), t('logout'), 'primary')) return;
+    setAuth(null); S.user = null; S.cart = []; renderApp();
+  });
   app.querySelectorAll('[data-t]').forEach(b => b.onclick = () => { S.tab = b.dataset.t; renderApp(); });
   ({ dashboard: viewDashboard, billing: viewBilling, inventory: viewInventory, records: viewRecords })[S.tab]($('#view'));
 }
@@ -384,9 +387,9 @@ function modal(html, size) {
   document.body.appendChild(m); return m;
 }
 // in-app confirmation dialog; resolves true when the user confirms
-const ask = (title, msg, okLabel) => new Promise(done => {
+const ask = (title, msg, okLabel, tone = 'danger solid') => new Promise(done => {
   const m = modal(`<h3>${esc(title)}</h3><p class="mute" style="margin:8px 0 20px">${esc(msg)}</p>
-    <div class="row"><button class="btn danger solid" data-ok>${okLabel}</button><button class="btn sec" data-no>${t('cancel')}</button></div>`);
+    <div class="row"><button class="btn ${tone === 'primary' ? '' : tone}" data-ok>${okLabel}</button><button class="btn sec" data-no>${t('cancel')}</button></div>`);
   m.addEventListener('mousedown', e => { if (e.target === m) done(false); });
   m.querySelector('[data-no]').onclick = () => { m.remove(); done(false); };
   m.querySelector('[data-ok]').onclick = () => { m.remove(); done(true); };
@@ -549,7 +552,7 @@ function receiptHTML(inv, w) {
     ${terms.length ? `<hr><div>${terms.map(x => esc(x)).join('<br>')}</div>` : ''}
     <hr><div class="c">${t('thanks')}</div></div>`;
 }
-const getFmt = () => { try { return localStorage.getItem('fmt') || 'a4'; } catch { return 'a4'; } };
+const getFmt = () => { try { return localStorage.getItem('fmt') || '80'; } catch { return '80'; } };
 const setFmt = v => { try { localStorage.setItem('fmt', v); } catch { /* storage blocked */ } };
 const docHTML = inv => { const f = getFmt(); return f === 'a4' ? invoiceHTML(inv) : receiptHTML(inv, +f); };
 
@@ -580,7 +583,43 @@ function showInvoice(inv, fresh) {
     m.remove(); if (S.tab === 'records') drawRecords(); toast(t('done'));
   });
 }
-function printInvoice(inv) {
+// One-tap printing: the receipt is drawn as an image and queued on the server; the Epson printer collects it
+// (Server Direct Print) and prints at once. Falls back to the browser print dialog when that is not set up.
+async function printInvoice(inv) {
+  const f = getFmt();
+  if (f === 'a4' || S.spd === false || !window.html2canvas) return browserPrint(inv);
+  try { await directPrint(inv, +f); }
+  catch (e) { if (e.code !== 'nospd') return toast(e.message, true); S.spd = false; browserPrint(inv); }
+}
+async function directPrint(inv, mm) {
+  const dots = mm === 58 ? 384 : 576, host = document.createElement('div');
+  host.className = 'offscreen'; host.innerHTML = docHTML(inv); document.body.appendChild(host);
+  let canvas;
+  try { const el = host.firstElementChild; canvas = await html2canvas(el, { scale: dots / el.offsetWidth, backgroundColor: '#fff' }); }
+  finally { host.remove(); }
+  // black / white bitmap, 8 pixels per byte, as ePOS-Print expects
+  const w = dots, h = canvas.height, ctx = document.createElement('canvas'), bytes = new Uint8Array((w >> 3) * h);
+  ctx.width = w; ctx.height = h; const c = ctx.getContext('2d'); c.fillStyle = '#fff'; c.fillRect(0, 0, w, h); c.drawImage(canvas, 0, 0, w, h);
+  const px = c.getImageData(0, 0, w, h).data;
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const i = (y * w + x) * 4;
+    if (0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2] < 170) bytes[y * (w >> 3) + (x >> 3)] |= 0x80 >> (x & 7);
+  }
+  let bin = ''; for (let i = 0; i < bytes.length; i += 8192) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 8192));
+  const xml = `<epos-print xmlns="http://www.epson-pos.com/schemas/2011/03/epos-print"><text align="left"/><image width="${w}" height="${h}" color="color_1" mode="mono">${btoa(bin)}</image><feed line="3"/><cut type="feed"/></epos-print>`;
+  let job;
+  try { job = await api('POST', '/api/print', { xml }); }
+  catch (e) { if (/not set up/i.test(e.message)) e.code = 'nospd'; throw e; }
+  toast(t('printSent'));
+  for (let n = 0; n < 16; n++) { // the printer checks for jobs every few seconds
+    await new Promise(r => setTimeout(r, 1500));
+    const { status } = await api('GET', '/api/print/' + job.id);
+    if (status === 'done') return toast(t('printed'));
+    if (status === 'error') throw new Error(t('printError'));
+  }
+  throw new Error(t('printWait'));
+}
+function browserPrint(inv) {
   const oldTitle = document.title, f = getFmt();
   let st = $('#pageStyle'); if (!st) { st = document.createElement('style'); st.id = 'pageStyle'; document.head.appendChild(st); }
   st.textContent = f === 'a4' ? '@page{size:A4;margin:0}' : `@page{size:${f}mm auto;margin:0}`; // thermal: roll width, height follows the content
