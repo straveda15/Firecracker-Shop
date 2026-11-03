@@ -583,41 +583,39 @@ function showInvoice(inv, fresh) {
     m.remove(); if (S.tab === 'records') drawRecords(); toast(t('done'));
   });
 }
-// One-tap printing: the receipt is drawn as an image and queued on the server; the Epson printer collects it
-// (Server Direct Print) and prints at once. Falls back to the browser print dialog when that is not set up.
+// One-tap printing: the receipt is drawn as an image and sent over the shop network straight to the Epson
+// printer (ePOS-Print), so no dialog appears. Without a printer address it falls back to the browser dialog.
 async function printInvoice(inv) {
   const f = getFmt();
-  if (f === 'a4' || S.spd === false || !window.html2canvas) return browserPrint(inv);
-  try { await directPrint(inv, +f); }
-  catch (e) { if (e.code !== 'nospd') return toast(e.message, true); S.spd = false; browserPrint(inv); }
+  if (f === 'a4' || !S.settings.printerIp || !window.html2canvas) return browserPrint(inv);
+  try { await lanPrint(inv, +f); } catch (e) { toast(e.message, true); }
 }
-async function directPrint(inv, mm) {
+async function lanPrint(inv, mm) {
   const dots = mm === 58 ? 384 : 576, host = document.createElement('div');
   host.className = 'offscreen'; host.innerHTML = docHTML(inv); document.body.appendChild(host);
   let canvas;
   try { const el = host.firstElementChild; canvas = await html2canvas(el, { scale: dots / el.offsetWidth, backgroundColor: '#fff' }); }
   finally { host.remove(); }
   // black / white bitmap, 8 pixels per byte, as ePOS-Print expects
-  const w = dots, h = canvas.height, ctx = document.createElement('canvas'), bytes = new Uint8Array((w >> 3) * h);
-  ctx.width = w; ctx.height = h; const c = ctx.getContext('2d'); c.fillStyle = '#fff'; c.fillRect(0, 0, w, h); c.drawImage(canvas, 0, 0, w, h);
+  const w = dots, h = canvas.height, flat = document.createElement('canvas'), bytes = new Uint8Array((w >> 3) * h);
+  flat.width = w; flat.height = h; const c = flat.getContext('2d'); c.fillStyle = '#fff'; c.fillRect(0, 0, w, h); c.drawImage(canvas, 0, 0, w, h);
   const px = c.getImageData(0, 0, w, h).data;
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
     const i = (y * w + x) * 4;
     if (0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2] < 170) bytes[y * (w >> 3) + (x >> 3)] |= 0x80 >> (x & 7);
   }
   let bin = ''; for (let i = 0; i < bytes.length; i += 8192) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 8192));
-  const xml = `<epos-print xmlns="http://www.epson-pos.com/schemas/2011/03/epos-print"><text align="left"/><image width="${w}" height="${h}" color="color_1" mode="mono">${btoa(bin)}</image><feed line="3"/><cut type="feed"/></epos-print>`;
-  let job;
-  try { job = await api('POST', '/api/print', { xml }); }
-  catch (e) { if (/not set up/i.test(e.message)) e.code = 'nospd'; throw e; }
+  const xml = `<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"><s:Body><epos-print xmlns="http://www.epson-pos.com/schemas/2011/03/epos-print"><text align="left"/><image width="${w}" height="${h}" color="color_1" mode="mono">${btoa(bin)}</image><feed line="3"/><cut type="feed"/></epos-print></s:Body></s:Envelope>`;
+  const ip = S.settings.printerIp, ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 15000);
   toast(t('printSent'));
-  for (let n = 0; n < 16; n++) { // the printer checks for jobs every few seconds
-    await new Promise(r => setTimeout(r, 1500));
-    const { status } = await api('GET', '/api/print/' + job.id);
-    if (status === 'done') return toast(t('printed'));
-    if (status === 'error') throw new Error(t('printError'));
-  }
-  throw new Error(t('printWait'));
+  let text;
+  try {
+    const res = await fetch(`https://${ip}/cgi-bin/epos/service.cgi?devid=local_printer&timeout=10000`, { method: 'POST', headers: { 'Content-Type': 'text/xml; charset=utf-8', SOAPAction: '""' }, body: xml, signal: ctl.signal });
+    text = await res.text();
+  } catch { throw new Error(t('printUnreachable').replace('{ip}', ip)); }
+  finally { clearTimeout(timer); }
+  if (!/success="true"/.test(text)) throw new Error(t('printError'));
+  toast(t('printed'));
 }
 function browserPrint(inv) {
   const oldTitle = document.title, f = getFmt();

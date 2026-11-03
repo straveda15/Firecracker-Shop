@@ -11,9 +11,7 @@ Printing: Print uses the browser print dialog at 80mm/58mm (set in Settings); ch
 (or "Save as PDF"). "Download PDF" needs internet once to load the PDF libraries.
 For internet/HTTPS access, put the app behind an HTTPS reverse proxy.
 
-One-tap thermal printing (Epson TM-m30III, Server Direct Print): set SPD_KEY (a long random secret) in the
-environment. In the printer's Web Config (type its IP in a browser) > Server Direct Print, enable it and set the
-URL to `https://<your-site>/api/spd?key=<SPD_KEY>` with a 1-5 second interval; if the printer cannot verify the
-site's HTTPS certificate, import the CA root certificate under Network Security. Print then sends the receipt
-(any language, drawn as an image) to the printer without a dialog. Without SPD_KEY the Print button opens the
-normal browser print dialog.
+One-tap thermal printing (Epson TM-m30III): set PRINTER_IP (e.g. 192.168.1.12) in the environment. On the shop Wi-Fi,
+Print then sends the receipt (any language, drawn as an image) straight to the printer with no dialog. Each device
+must open https://<PRINTER_IP> once and accept the browser's security warning. Without PRINTER_IP, or in A4 mode,
+Print opens the normal browser print dialog.
