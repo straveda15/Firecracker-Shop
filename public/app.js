@@ -12,6 +12,7 @@ const S = {
 };
 const t = k => I18N[S.lang][k] ?? I18N.en[k] ?? k;
 const iname = p => ((S.lang === 'mr' && p.nameMr) || p.name) + (p.brand ? ` (${p.brand})` : ''); // bill line: name followed by the brand in brackets
+const cname = c => c || t('walkIn'); // bills may have no customer name
 const pname = p => (S.lang === 'mr' && p.nameMr) || p.name; // products and invoice lines both carry name + nameMr
 const shopTitle = () => (S.lang === 'mr' ? S.settings.shopNameMr : S.settings.shopName) || t('appName');
 
@@ -145,10 +146,10 @@ async function viewDashboard(v) {
     <div class="dash-cols">
       <section class="card"><div class="chead"><h2 class="ct">${t('recentOrders')}</h2></div>${d.orders.length ? `<ul class="rlist">${d.orders.map(o => {
         const names = o.items.slice(0, 2).map(it => `${esc(iname(it))} &times; ${it.qty}`).join(', '), extra = o.items.length - 2;
-        return `<li><span class="av sky">${ico('receipt', 18)}</span><div class="rl"><b>${o.no} · ${esc(o.customer)}</b><div class="mute">${names}${extra > 0 ? ` +${extra} ${t('more')}` : ''} · ${dmy(o.date)}</div></div><b class="ramt">₹${money(o.total)}</b></li>`;
+        return `<li><span class="av sky">${ico('receipt', 18)}</span><div class="rl"><b>${o.no} · ${esc(cname(o.customer))}</b><div class="mute">${names}${extra > 0 ? ` +${extra} ${t('more')}` : ''} · ${dmy(o.date)}</div></div><b class="ramt">₹${money(o.total)}</b></li>`;
       }).join('')}</ul>` : none}</section>
       <section class="card"><div class="chead"><h2 class="ct">${t('recentCustomers')}</h2></div>${d.customers.length ? `<ul class="rlist">${d.customers.map(c =>
-        `<li><span class="av green">${esc(initial(c.customer))}</span><div class="rl"><b>${esc(c.customer)}</b><div class="mute">${c.phone ? esc(c.phone) + ' · ' : ''}${dmy(c.date)} · ${c.no}</div></div><b class="ramt">₹${money(c.total)}</b></li>`).join('')}</ul>` : none}</section>
+        `<li><span class="av green">${esc(initial(c.customer || c.phone))}</span><div class="rl"><b>${esc(c.customer || c.phone)}</b><div class="mute">${c.customer && c.phone ? esc(c.phone) + ' · ' : ''}${dmy(c.date)} · ${c.no}</div></div><b class="ramt">₹${money(c.total)}</b></li>`).join('')}</ul>` : none}</section>
     </div>`;
 }
 
@@ -199,7 +200,7 @@ function viewBilling(v) {
   <div class="bill-cols">
     <div class="bill-left">
       <section class="card"><h2 class="ct">${t('custDetails')}</h2>
-        <div class="row"><div><label>${t('customer')} *</label><input id="cn" value="${esc(S.customer)}" maxlength="80" autocomplete="off"></div>
+        <div class="row"><div><label>${t('customer')} <em>(${t('optional')})</em></label><input id="cn" value="${esc(S.customer)}" maxlength="80" autocomplete="off"></div>
         <div><label>${t('phone')} <em>(${t('optional')})</em></label><input id="cp" inputmode="numeric" pattern="[0-9]*" value="${esc(S.phone)}" maxlength="10" placeholder="${t('phHint')}" autocomplete="off"></div></div></section>
       <section class="card"><div class="chead"><div><h2 class="ct">${t('billItems')}</h2><p class="mute csub">${t('addItemHint')}</p></div></div>
         <div id="lines"></div>
@@ -316,7 +317,7 @@ function drawLines() {
 function draftInvoice() {
   const c = calc(), now = new Date();
   return { no: t('draft'), date: now.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }), createdAt: now.toISOString(), status: 'active',
-    customer: S.customer.trim() || '—', phone: S.phone, payment: S.payment, discountType: S.discType, discountValue: Number(S.discVal) || 0,
+    customer: S.customer.trim(), phone: S.phone, payment: S.payment, discountType: S.discType, discountValue: Number(S.discVal) || 0,
     subtotal: c.subtotal, discount: c.discount, roundOff: c.roundOff, total: c.total,
     items: filled().map(i => { const p = prod(i.productId); return { productId: i.productId, name: p.name, nameMr: p.nameMr || '', brand: p.brand || '', qty: i.qty, rate: i.rate, amount: r2(i.qty * i.rate) }; }) };
 }
@@ -349,8 +350,7 @@ function drawTotals() {
 }
 async function generate() {
   const nm = S.customer.trim().replace(/\s+/g, ' ');
-  if (!nm) { $('#cn').focus(); return toast(t('enterName'), true); }
-  if (nm.length < 2 || !/^[\p{L}\p{M}][\p{L}\p{M} .'-]*$/u.test(nm)) { $('#cn').focus(); return toast(t('badName'), true); }
+  if (nm && (nm.length < 2 || !/^[\p{L}\p{M}][\p{L}\p{M} .'-]*$/u.test(nm))) { $('#cn').focus(); return toast(t('badName'), true); }
   if (S.phone && !/^[6-9]\d{9}$/.test(S.phone)) { $('#cp').focus(); return toast(t('badPhone'), true); }
   if (!filled().length) return toast(t('emptyCart'), true);
   if (calc().discount < (Number(S.discVal) || 0) && S.discType === 'amount') return toast(t('discTooHigh'), true);
@@ -478,7 +478,7 @@ async function drawRecords() {
     <h2 class="sh">${t('orders')}</h2>
     ${list.length ? `<div class="table-wrap"><table class="rec"><thead><tr><th>${t('billNo')}</th><th>${t('date')}</th><th>${t('customer')}</th><th>${t('orderDetails')}</th><th class="n">${t('total')}</th><th></th></tr></thead><tbody>
       ${list.map(i => `<tr><td><b>${i.no}</b>${i.status === 'void' ? `<div><span class="badge">${t('cancelled')}</span></div>` : ''}</td><td style="white-space:nowrap">${i.date.split('-').reverse().join('-')}</td>
-      <td>${esc(i.customer)}${i.phone ? `<div class="mute">${esc(i.phone)}</div>` : ''}</td>
+      <td>${esc(cname(i.customer))}${i.phone ? `<div class="mute">${esc(i.phone)}</div>` : ''}</td>
       <td class="od">${i.items.map(it => `<div>${esc(iname(it))} <span class="mute">&times; ${it.qty} @ ${money(it.rate)}</span></div>`).join('')}${i.discount ? `<div class="mute">${t('discount')}: &minus; ${money(i.discount)}</div>` : ''}</td>
       <td class="n" ${i.status === 'void' ? 'style="text-decoration:line-through;color:var(--mute)"' : ''}><b>₹${money(i.total)}</b></td>
       <td class="n" style="white-space:nowrap"><button class="btn sec sm" data-v="${i.id}">${t('view')}</button> <button class="btn sec sm" data-prt="${i.id}">${t('print')}</button> <button class="btn sec sm" data-pdf="${i.id}">PDF</button></td></tr>`).join('')}</tbody></table></div>` : `<div class="empty">${t('noRecords')}</div>`}`;
@@ -512,7 +512,7 @@ function invoiceHTML(inv) {
       <div><div class="inv-co">${esc(shopTitle())}</div>${s.address ? esc(s.address) + '<br>' : ''}${s.phone ? t('ph') + ': ' + esc(s.phone) : ''}</div>
       <table class="inv-meta"><tr><td><b>${t('invNo')}:</b></td><td>${inv.no}</td></tr><tr><td><b>${t('invDate')}:</b></td><td>${dmy(inv.date)}</td></tr>
       <tr><td><b>${t('payMode')}:</b></td><td>${t(inv.payment)}</td></tr></table></div>
-    <table class="inv-t inv-bill"><tr><td><b>${t('billTo')}:</b><br>${esc(inv.customer)}${inv.phone ? '<br>' + t('ph') + ': ' + esc(inv.phone) : ''}</td></tr></table>
+    <table class="inv-t inv-bill"><tr><td><b>${t('billTo')}:</b><br>${esc(cname(inv.customer))}${inv.phone ? '<br>' + t('ph') + ': ' + esc(inv.phone) : ''}</td></tr></table>
     <table class="inv-t inv-items"><thead><tr><th style="width:7%">${t('sr')}</th><th>${t('desc')}</th><th style="width:10%">${t('qty')}</th><th style="width:14%">${t('rate')} (₹)</th><th style="width:17%">${t('amount')} (₹)</th></tr></thead><tbody>
       ${inv.items.map((i, n) => `<tr><td class="c">${n + 1}</td><td>${esc(iname(i))}</td><td class="c">${i.qty}</td><td class="r">${money(i.rate)}</td><td class="r">${money(i.amount)}</td></tr>`).join('')}
       <tr class="pad"><td></td><td></td><td></td><td></td><td></td></tr></tbody></table>
@@ -537,7 +537,7 @@ function receiptHTML(inv, w) {
     ${s.address ? `<div class="c">${esc(s.address)}</div>` : ''}${s.phone ? `<div class="c">${t('ph')}: ${esc(s.phone)}</div>` : ''}
     <hr><div class="c b">${t('invoice')}</div>${inv.status === 'void' ? `<div class="void">${t('cancelled').toUpperCase()}</div>` : ''}
     ${L(t('billNo'), inv.no)}${L(t('date'), dmy(inv.date))}${time ? L(t('time'), time) : ''}
-    ${L(t('customer'), esc(inv.customer))}${inv.phone ? L(t('ph'), esc(inv.phone)) : ''}
+    ${inv.customer ? L(t('customer'), esc(inv.customer)) : ''}${inv.phone ? L(t('ph'), esc(inv.phone)) : ''}
     <hr>${L(t('product'), t('amount'), 'b')}
     ${inv.items.map(i => `<div class="it"><div class="in">${esc(iname(i))}</div>${L(`${i.qty} &times; ${money(i.rate)}`, money(i.amount))}</div>`).join('')}
     <hr>${L(t('subtotal'), money(inv.subtotal))}
