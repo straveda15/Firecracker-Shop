@@ -8,7 +8,7 @@ const S = {
   user: null, lang: (() => { try { return localStorage.getItem('lang') === 'mr' ? 'mr' : 'en'; } catch { return 'en'; } })(), tab: 'dashboard',
   products: [], settings: {},
   cart: [], customer: '', phone: '', discType: 'amount', discVal: '', payment: 'cash', 
-  invQ: '', invF: 'all', invCat: 'all', recFrom: '', recTo: '',
+  invQ: '', invCat: 'all', recFrom: '', recTo: '',
 };
 const t = k => I18N[S.lang][k] ?? I18N.en[k] ?? k;
 const pname = p => (S.lang === 'mr' && p.nameMr) || p.name; // products and invoice lines both carry name + nameMr
@@ -129,7 +129,7 @@ async function viewDashboard(v) {
       ${kcard('sky', 'receipt', t('todayOrders'), d.today.orders, dmy(d.today.date))}
       ${kcard('green', 'rupee', t('todaySales'), '₹' + inr(d.today.sales), d.today.orders ? `${t('avgOrder')} ₹${inr(d.today.sales / d.today.orders)}` : '')}
       ${kcard('violet', 'trend', t('totalSales'), '₹' + inr(d.totalSales), `${d.totalOrders} ${t('ordersWord')}`)}
-      ${kcard('amber', 'box', t('totalStock'), d.totalStock, `${d.totalProducts} ${t('totalProducts').toLowerCase()}`)}
+      ${kcard('amber', 'box', t('totalProducts'), d.totalProducts, t('productsSub'))}
     </div>
     <section class="card chart">
       <div class="chead"><div><h2 class="ct">${t('last7')}</h2><p class="mute csub">${weekOrders ? `₹${inr(weekSales)} · ${weekOrders} ${t('ordersWord')}` : t('noOrdersWeek')}</p></div></div>
@@ -191,7 +191,7 @@ function calc() {
   return { subtotal, discount, roundOff: r2(total - raw), total };
 }
 const prod = id => S.products.find(x => x.id === +id);
-const stepper = (u, val, max) => `<div class="stepper"><button type="button" data-lm="${u}" aria-label="&minus;">&minus;</button><input type="number" min="1" max="${max}" step="1" inputmode="numeric" data-lq="${u}" value="${val}" aria-label="${t('qty')}"><button type="button" data-lp="${u}" aria-label="+">+</button></div>`;
+const stepper = (u, val) => `<div class="stepper"><button type="button" data-lm="${u}" aria-label="&minus;">&minus;</button><input type="number" min="1" step="1" inputmode="numeric" data-lq="${u}" value="${val}" aria-label="${t('qty')}"><button type="button" data-lp="${u}" aria-label="+">+</button></div>`;
 
 function viewBilling(v) {
   v.innerHTML = `<h1 class="ptitle">${t('billing')}</h1>
@@ -200,8 +200,7 @@ function viewBilling(v) {
       <section class="card"><h2 class="ct">${t('custDetails')}</h2>
         <div class="row"><div><label>${t('customer')} *</label><input id="cn" value="${esc(S.customer)}" maxlength="80" autocomplete="off"></div>
         <div><label>${t('phone')} <em>(${t('optional')})</em></label><input id="cp" inputmode="numeric" pattern="[0-9]*" value="${esc(S.phone)}" maxlength="10" placeholder="${t('phHint')}" autocomplete="off"></div></div></section>
-      <section class="card"><div class="chead"><div><h2 class="ct">${t('billItems')}</h2><p class="mute csub">${t('addItemHint')}</p></div>
-        <button type="button" class="plus" id="addLine" title="${t('addItem')}" aria-label="${t('addItem')}">${ico('plus', 22)}</button></div>
+      <section class="card"><div class="chead"><div><h2 class="ct">${t('billItems')}</h2><p class="mute csub">${t('addItemHint')}</p></div></div>
         <div id="lines"></div>
         <button type="button" class="addrow" id="addLine2">${ico('plus', 18)} ${t('addItem')}</button></section>
       <section class="card"><h2 class="ct">${t('payDisc')}</h2>
@@ -220,7 +219,7 @@ function viewBilling(v) {
     </aside></div><button id="cartbar" type="button"></button>`;
   $('#cn').oninput = e => { e.target.value = S.customer = e.target.value.replace(/[^\p{L}\p{M} .'-]/gu, ''); drawPreview(); };
   $('#cp').oninput = e => { e.target.value = S.phone = e.target.value.replace(/\D/g, '').slice(0, 10); drawPreview(); };
-  $('#addLine').onclick = $('#addLine2').onclick = addLine;
+  $('#addLine2').onclick = addLine;
   $('#dv').oninput = e => { S.discVal = e.target.value; drawTotals(); };
   $('#pay').onchange = e => { S.payment = e.target.value; drawPreview(); };
   v.querySelectorAll('[data-d]').forEach(b => b.onclick = () => { S.discType = b.dataset.d; drawSeg(); drawTotals(); });
@@ -236,8 +235,8 @@ function drawSeg() { document.querySelectorAll('[data-d]').forEach(b => b.classL
 let lineSeq = 0;
 const filled = () => S.cart.filter(i => i.productId && prod(i.productId)); // lines that have a product chosen
 const lineOpts = line => S.products.map(p => {
-  const taken = S.cart.some(x => x !== line && x.productId === p.id), out = p.stock <= 0;
-  return `<option value="${p.id}" ${line.productId === p.id ? 'selected' : ''} ${taken || out ? 'disabled' : ''}>${esc(pname(p))} · ₹${money(p.price)}${p.unit ? ' / ' + esc(p.unit) : ''}${out ? ' · ' + t('outOfStock') : ''}</option>`;
+  const taken = S.cart.some(x => x !== line && x.productId === p.id);
+  return `<option value="${p.id}" ${line.productId === p.id ? 'selected' : ''} ${taken ? 'disabled' : ''}>${esc(pname(p))}${p.brand ? ' (' + esc(p.brand) + ')' : ''} · ₹${money(p.price)}${p.unit ? ' / ' + esc(p.unit) : ''}</option>`;
 }).join('');
 function addLine() {
   let line = S.cart.find(x => !x.productId);
@@ -252,20 +251,18 @@ function drawLines() {
   el.innerHTML = S.cart.map(i => {
     const p = i.productId && prod(i.productId);
     return `<div class="lrow ${p ? 'set' : ''}"><div class="lf"><select data-ls="${i.uid}" aria-label="${t('product')}"><option value="">${t('selectProduct')}</option>${lineOpts(i)}</select>
-      ${p ? `<span class="pmeta">₹${money(p.price)}${p.unit ? ` / ${esc(p.unit)}` : ''} &middot; ${p.stock} ${t('inStock')}</span>` : ''}</div>
-      <div class="lc">${p ? stepper(i.uid, i.qty, p.stock) : ''}<span class="pamt" id="amt${i.uid}">${p ? '₹' + money(i.qty * i.rate) : ''}</span>
+      ${p ? `<span class="pmeta">₹${money(p.price)}${p.unit ? ` / ${esc(p.unit)}` : ''}${p.brand ? ` &middot; ${esc(p.brand)}` : ''}</span>` : ''}</div>
+      <div class="lc">${p ? stepper(i.uid, i.qty) : ''}<span class="pamt" id="amt${i.uid}">${p ? '₹' + money(i.qty * i.rate) : ''}</span>
       <button type="button" class="ib del" data-lx="${i.uid}" title="${t('removeItem')}" aria-label="${t('removeItem')}">${ico('trash', 17)}</button></div></div>`;
   }).join('');
   const line = u => S.cart.find(x => x.uid === +u);
   el.querySelectorAll('[data-ls]').forEach(sel => sel.onchange = () => {
     const i = line(sel.dataset.ls), p = prod(sel.value);
-    if (p) { i.productId = p.id; i.rate = p.price; i.qty = Math.min(Math.max(1, i.qty), p.stock); } else { i.productId = null; i.rate = 0; }
+    if (p) { i.productId = p.id; i.rate = p.price; i.qty = Math.max(1, i.qty); } else { i.productId = null; i.rate = 0; }
     drawLines(); drawTotals();
   });
   el.querySelectorAll('[data-lx]').forEach(b => b.onclick = () => { S.cart = S.cart.filter(x => x.uid !== +b.dataset.lx); drawLines(); drawTotals(); });
   const setQty = (i, n, inp) => {
-    const p = prod(i.productId);
-    if (n > p.stock) { n = p.stock; toast(`${pname(p)}: ${t('stock')} ${p.stock}`, true); }
     i.qty = n; if (inp) inp.value = n;
     const a = $('#amt' + i.uid); if (a) a.textContent = '₹' + money(i.qty * i.rate);
     drawTotals();
@@ -274,7 +271,7 @@ function drawLines() {
   el.querySelectorAll('[data-lp]').forEach(b => b.onclick = () => { const i = line(b.dataset.lp); setQty(i, i.qty + 1, b.previousElementSibling); });
   el.querySelectorAll('[data-lq]').forEach(inp => {
     const i = line(inp.dataset.lq);
-    inp.oninput = () => { const n = Math.floor(Number(inp.value)); if (n >= 1) setQty(i, n, n > prod(i.productId).stock ? inp : null); };
+    inp.oninput = () => { const n = Math.floor(Number(inp.value)); if (n >= 1) setQty(i, n); };
     inp.onchange = () => setQty(i, Math.max(1, Math.floor(Number(inp.value)) || 1), inp);
   });
 }
@@ -328,58 +325,41 @@ async function generate() {
       discountType: S.discType, discountValue: Number(S.discVal) || 0,
       items: filled().map(i => ({ productId: i.productId, qty: i.qty })),
     });
-    inv.items.forEach(it => { const p = S.products.find(x => x.id === it.productId); if (p) p.stock -= it.qty; });
     resetBill(); renderApp(); toast(t('billCreated') + ' ' + inv.no);
     showInvoice(inv, true);
   } catch (e) {
-    if (/stock|Unknown product/i.test(e.message)) S.products = await api('GET', '/api/products').catch(() => S.products);
+    if (/Unknown product/i.test(e.message)) S.products = await api('GET', '/api/products').catch(() => S.products);
     throw e;
   } finally { btn.disabled = false; }
 }
 
 // ---------------- inventory ----------------
-const stockState = p => p.stock <= 0 ? 'out' : p.stock <= p.lowStock ? 'low' : 'ok';
 function viewInventory(v) {
-  const P = S.products, low = P.filter(p => stockState(p) === 'low').length, out = P.filter(p => stockState(p) === 'out').length;
-  const units = P.reduce((a, p) => a + p.stock, 0), value = P.reduce((a, p) => a + p.stock * p.price, 0);
-  const chips = [['all', t('all'), P.length], ['low', t('low'), low], ['out', t('outOfStock'), out]];
+  const P = S.products;
   v.innerHTML = `<div class="pagehead"><h1 class="ptitle">${t('inventory')}</h1><button class="btn" id="add">+ ${t('addProduct')}</button></div>
-    <div class="kcards c5">
-      ${kcard('sky', 'box', t('totalProducts'), P.length, t('productsSub'))}
-      ${kcard('violet', 'layers', t('unitsInStock'), units.toLocaleString('en-IN'), '')}
-      ${kcard('green', 'rupee', t('stockValue'), '₹' + inr(value), t('valueSub'))}
-      ${kcard('amber', 'alert', t('lowItems'), low, low ? t('needRestock') : '')}
-      ${kcard('red', 'x', t('outItems'), out, out ? t('noneLeft') : '')}
-    </div>
     <div class="cats" role="tablist">${[['all', t('all')], ['A', 'A'], ['B', 'B'], ['C', 'C']].map(([k, l]) => `<button type="button" role="tab" data-cat="${k}" class="${S.invCat === k ? 'on' : ''}">${l} <span>${k === 'all' ? P.length : P.filter(p => p.category === k).length}</span></button>`).join('')}</div>
-    <div class="tools"><div class="sbox">${ico('search', 18)}<input id="iq" type="search" placeholder="${t('searchInv')}" value="${esc(S.invQ)}" autocomplete="off"></div>
-      <div class="chips">${chips.map(([k, l, n]) => `<button type="button" data-fc="${k}" class="${S.invF === k ? 'on' : ''}">${l} <span>${n}</span></button>`).join('')}</div></div>
+    <div class="tools"><div class="sbox">${ico('search', 18)}<input id="iq" type="search" placeholder="${t('searchInv')}" value="${esc(S.invQ)}" autocomplete="off"></div></div>
     <div id="itab"></div>`;
   $('#add').onclick = () => productForm();
   $('#iq').oninput = e => { S.invQ = e.target.value; drawInvTable(); };
   v.querySelectorAll('[data-cat]').forEach(b => b.onclick = () => { S.invCat = b.dataset.cat; v.querySelectorAll('[data-cat]').forEach(x => x.classList.toggle('on', x === b)); drawInvTable(); });
-  v.querySelectorAll('[data-fc]').forEach(b => b.onclick = () => { S.invF = b.dataset.fc; v.querySelectorAll('[data-fc]').forEach(x => x.classList.toggle('on', x === b)); drawInvTable(); });
   drawInvTable();
 }
 function drawInvTable() {
   const el = $('#itab'), q = S.invQ.trim().toLowerCase();
   if (!S.products.length) { el.innerHTML = `<div class="empty">${t('noProducts')}</div>`; return; }
-  const list = S.products.filter(p => (!q || (p.name + ' ' + (p.nameMr || '')).toLowerCase().includes(q)) && (S.invF === 'all' || stockState(p) === S.invF) && (S.invCat === 'all' || p.category === S.invCat));
+  const list = S.products.filter(p => (!q || (p.name + ' ' + (p.nameMr || '') + ' ' + (p.brand || '')).toLowerCase().includes(q)) && (S.invCat === 'all' || p.category === S.invCat));
   if (!list.length) { el.innerHTML = `<div class="empty">${t('noMatch')}</div>`; return; }
-  const tone = { ok: 'sky', low: 'amber', out: 'red' };
-  el.innerHTML = `<div class="table-wrap"><table class="itable"><thead><tr><th>${t('product')}</th><th class="n">${t('price')}</th><th class="n">${t('stock')}</th><th class="n">${t('value')}</th><th></th></tr></thead><tbody>
+  el.innerHTML = `<div class="table-wrap"><table class="itable"><thead><tr><th>${t('product')}</th><th>${t('brand')}</th><th class="n">${t('price')}</th><th></th></tr></thead><tbody>
     ${list.map(p => {
-      const s = stockState(p), alt = S.lang === 'mr' ? p.name : p.nameMr;
-      return `<tr><td><div class="pcell"><span class="av ${tone[s]}">${esc(initial(pname(p)))}</span><div><b>${esc(pname(p))}</b>${p.category ? ` <span class="catb">${p.category}</span>` : ''}${alt ? `<div class="mute">${esc(alt)}</div>` : ''}</div></div></td>
+      const alt = S.lang === 'mr' ? p.name : p.nameMr;
+      return `<tr><td><div class="pcell"><span class="av sky">${esc(initial(pname(p)))}</span><div><b>${esc(pname(p))}</b>${p.category ? ` <span class="catb">${p.category}</span>` : ''}${alt ? `<div class="mute">${esc(alt)}</div>` : ''}</div></div></td>
+      <td data-l="${t('brand')}">${p.brand ? esc(p.brand) : '<span class="mute">—</span>'}</td>
       <td class="n" data-l="${t('price')}">₹${money(p.price)}${p.unit ? ` <span class="mute">/ ${esc(p.unit)}</span>` : ''}</td>
-      <td class="n" data-l="${t('stock')}"><b>${p.stock}</b> ${s === 'out' ? `<span class="badge">${t('outOfStock')}</span>` : s === 'low' ? `<span class="badge warn">${t('low')}</span>` : `<span class="badge ok">${t('inStockBadge')}</span>`}</td>
-      <td class="n" data-l="${t('value')}">₹${money(p.stock * p.price)}</td>
-      <td class="n"><div class="acts"><button class="btn sm" data-s="${p.id}">${t('updateStock')}</button>
-        <button class="ib" data-e="${p.id}" title="${t('edit')}" aria-label="${t('edit')}">${ico('edit', 17)}</button>
+      <td class="n"><div class="acts"><button class="ib" data-e="${p.id}" title="${t('edit')}" aria-label="${t('edit')}">${ico('edit', 17)}</button>
         <button class="ib del" data-x="${p.id}" title="${t('deleteProduct')}" aria-label="${t('deleteProduct')}">${ico('trash', 17)}</button></div></td></tr>`;
     }).join('')}</tbody></table></div>`;
   el.querySelectorAll('[data-e]').forEach(b => b.onclick = () => productForm(prod(b.dataset.e)));
-  el.querySelectorAll('[data-s]').forEach(b => b.onclick = () => stockForm(prod(b.dataset.s)));
   el.querySelectorAll('[data-x]').forEach(b => b.onclick = () => deleteProduct(prod(b.dataset.x)));
 }
 function modal(html, size) {
@@ -408,10 +388,9 @@ function productForm(p) {
     <label>${t('category')} *</label><select name="category" required><option value="">${t('selectCategory')}</option>${['A', 'B', 'C'].map(c => `<option value="${c}" ${p?.category === c ? 'selected' : ''}>${c}</option>`).join('')}</select>
     <div class="row"><div><label>${t('nameEn')} *</label><input name="name" required value="${esc(p?.name)}" maxlength="80"></div>
     <div><label>${t('nameMr')}</label><input name="nameMr" value="${esc(p?.nameMr)}" maxlength="80"></div></div>
+    <label>${t('brand')}</label><input name="brand" value="${esc(p?.brand)}" maxlength="60" autocomplete="off">
     <div class="row"><div><label>${t('price')} *</label><input name="price" type="number" min="0" step="any" required inputmode="decimal" value="${p?.price ?? ''}"></div>
     <div><label>${t('unit')}</label><input name="unit" value="${esc(p?.unit)}" maxlength="12"></div></div>
-    <div class="row"><div><label>${t('openingStock')} *</label><input name="stock" type="number" min="0" step="1" required inputmode="numeric" value="${p?.stock ?? ''}"></div>
-    <div><label>${t('lowStock')}</label><input name="lowStock" type="number" min="0" step="1" inputmode="numeric" value="${p?.lowStock ?? 10}"></div></div>
     <div class="row" style="margin-top:20px"><button class="btn">${t('save')}</button><button type="button" class="btn sec" data-c>${t('cancel')}</button>
     ${p ? `<button type="button" class="btn danger fit" data-del>${t('delete')}</button>` : ''}</div></form>`, 'wide');
   m.querySelector('[data-c]').onclick = () => m.remove();
@@ -426,28 +405,6 @@ function productForm(p) {
     });
   });
 }
-function stockForm(p) {
-  let mode = 1;
-  const m = modal(`<h3>${esc(pname(p))}</h3><p class="mute" style="margin:4px 0 14px">${t('stock')}: <b style="color:var(--ink)">${p.stock}</b></p><form id="sf">
-    <div class="seg"><button type="button" data-k="1" class="on">${t('addStock')}</button><button type="button" data-k="-1">${t('removeStock')}</button></div>
-    <label>${t('quantity')}</label><input name="d" type="number" min="1" step="1" required inputmode="numeric" autofocus>
-    <p class="mute" id="pv" style="margin:8px 0 0"></p>
-    <div class="row" style="margin-top:18px"><button class="btn">${t('save')}</button><button type="button" class="btn sec" data-c>${t('cancel')}</button></div></form>`);
-  const inp = m.querySelector('[name=d]'), pv = m.querySelector('#pv');
-  const prev = () => { const n = Number(inp.value); pv.textContent = n > 0 ? `${t('newStock')}: ${p.stock + mode * n}` : ''; };
-  inp.oninput = prev;
-  m.querySelectorAll('[data-k]').forEach(b => b.onclick = () => { mode = +b.dataset.k; m.querySelectorAll('[data-k]').forEach(x => x.classList.toggle('on', x === b)); prev(); });
-  m.querySelector('[data-c]').onclick = () => m.remove();
-  m.querySelector('#sf').onsubmit = guard(async e => {
-    e.preventDefault();
-    await busy(e, async () => {
-      upsertProduct(await api('POST', `/api/products/${p.id}/stock`, { delta: mode * Number(inp.value) }));
-      m.remove(); renderApp(); toast(t('saved'));
-    });
-  });
-  setTimeout(() => inp.focus(), 50);
-}
-
 // ---------------- records ----------------
 const istDate = (d = new Date()) => d.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
 const recPresets = () => {
