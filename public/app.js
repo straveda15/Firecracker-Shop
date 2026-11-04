@@ -11,6 +11,7 @@ const S = {
   invQ: '', invCat: 'all', recFrom: '', recTo: '',
 };
 const t = k => I18N[S.lang][k] ?? I18N.en[k] ?? k;
+const iname = p => ((S.lang === 'mr' && p.nameMr) || p.name) + (p.brand ? ` (${p.brand})` : ''); // bill line: name followed by the brand in brackets
 const pname = p => (S.lang === 'mr' && p.nameMr) || p.name; // products and invoice lines both carry name + nameMr
 const shopTitle = () => (S.lang === 'mr' ? S.settings.shopNameMr : S.settings.shopName) || t('appName');
 
@@ -143,7 +144,7 @@ async function viewDashboard(v) {
     </section>
     <div class="dash-cols">
       <section class="card"><div class="chead"><h2 class="ct">${t('recentOrders')}</h2></div>${d.orders.length ? `<ul class="rlist">${d.orders.map(o => {
-        const names = o.items.slice(0, 2).map(it => `${esc(pname(it))} &times; ${it.qty}`).join(', '), extra = o.items.length - 2;
+        const names = o.items.slice(0, 2).map(it => `${esc(iname(it))} &times; ${it.qty}`).join(', '), extra = o.items.length - 2;
         return `<li><span class="av sky">${ico('receipt', 18)}</span><div class="rl"><b>${o.no} · ${esc(o.customer)}</b><div class="mute">${names}${extra > 0 ? ` +${extra} ${t('more')}` : ''} · ${dmy(o.date)}</div></div><b class="ramt">₹${money(o.total)}</b></li>`;
       }).join('')}</ul>` : none}</section>
       <section class="card"><div class="chead"><h2 class="ct">${t('recentCustomers')}</h2></div>${d.customers.length ? `<ul class="rlist">${d.customers.map(c =>
@@ -281,7 +282,7 @@ function draftInvoice() {
   return { no: t('draft'), date: now.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }), createdAt: now.toISOString(), status: 'active',
     customer: S.customer.trim() || '—', phone: S.phone, payment: S.payment, discountType: S.discType, discountValue: Number(S.discVal) || 0,
     subtotal: c.subtotal, discount: c.discount, roundOff: c.roundOff, total: c.total,
-    items: filled().map(i => { const p = prod(i.productId); return { productId: i.productId, name: p.name, nameMr: p.nameMr || '', qty: i.qty, rate: i.rate, amount: r2(i.qty * i.rate) }; }) };
+    items: filled().map(i => { const p = prod(i.productId); return { productId: i.productId, name: p.name, nameMr: p.nameMr || '', brand: p.brand || '', qty: i.qty, rate: i.rate, amount: r2(i.qty * i.rate) }; }) };
 }
 function drawPreview() {
   const el = $('#pv'); if (!el) return;
@@ -442,7 +443,7 @@ async function drawRecords() {
     ${list.length ? `<div class="table-wrap"><table class="rec"><thead><tr><th>${t('billNo')}</th><th>${t('date')}</th><th>${t('customer')}</th><th>${t('orderDetails')}</th><th class="n">${t('total')}</th><th></th></tr></thead><tbody>
       ${list.map(i => `<tr><td><b>${i.no}</b>${i.status === 'void' ? `<div><span class="badge">${t('cancelled')}</span></div>` : ''}</td><td style="white-space:nowrap">${i.date.split('-').reverse().join('-')}</td>
       <td>${esc(i.customer)}${i.phone ? `<div class="mute">${esc(i.phone)}</div>` : ''}</td>
-      <td class="od">${i.items.map(it => `<div>${esc(pname(it))} <span class="mute">&times; ${it.qty} @ ${money(it.rate)}</span></div>`).join('')}${i.discount ? `<div class="mute">${t('discount')}: &minus; ${money(i.discount)}</div>` : ''}</td>
+      <td class="od">${i.items.map(it => `<div>${esc(iname(it))} <span class="mute">&times; ${it.qty} @ ${money(it.rate)}</span></div>`).join('')}${i.discount ? `<div class="mute">${t('discount')}: &minus; ${money(i.discount)}</div>` : ''}</td>
       <td class="n" ${i.status === 'void' ? 'style="text-decoration:line-through;color:var(--mute)"' : ''}><b>₹${money(i.total)}</b></td>
       <td class="n" style="white-space:nowrap"><button class="btn sec sm" data-v="${i.id}">${t('view')}</button> <button class="btn sec sm" data-prt="${i.id}">${t('print')}</button> <button class="btn sec sm" data-pdf="${i.id}">PDF</button></td></tr>`).join('')}</tbody></table></div>` : `<div class="empty">${t('noRecords')}</div>`}`;
   const byId = Object.fromEntries(list.map(i => [i.id, i]));
@@ -477,7 +478,7 @@ function invoiceHTML(inv) {
       <tr><td><b>${t('payMode')}:</b></td><td>${t(inv.payment)}</td></tr></table></div>
     <table class="inv-t inv-bill"><tr><td><b>${t('billTo')}:</b><br>${esc(inv.customer)}${inv.phone ? '<br>' + t('ph') + ': ' + esc(inv.phone) : ''}</td></tr></table>
     <table class="inv-t inv-items"><thead><tr><th style="width:7%">${t('sr')}</th><th>${t('desc')}</th><th style="width:10%">${t('qty')}</th><th style="width:14%">${t('rate')} (₹)</th><th style="width:17%">${t('amount')} (₹)</th></tr></thead><tbody>
-      ${inv.items.map((i, n) => `<tr><td class="c">${n + 1}</td><td>${esc(pname(i))}</td><td class="c">${i.qty}</td><td class="r">${money(i.rate)}</td><td class="r">${money(i.amount)}</td></tr>`).join('')}
+      ${inv.items.map((i, n) => `<tr><td class="c">${n + 1}</td><td>${esc(iname(i))}</td><td class="c">${i.qty}</td><td class="r">${money(i.rate)}</td><td class="r">${money(i.amount)}</td></tr>`).join('')}
       <tr class="pad"><td></td><td></td><td></td><td></td><td></td></tr></tbody></table>
     <table class="inv-t inv-foot"><tr><td class="inv-words"><b>${t('words')}:</b><br>Rupees ${words(inv.total)} Only${terms.length ? `<br><br><b>${t('terms')}:</b><br>${terms.map((x, n) => `${n + 1}. ${esc(x)}`).join('<br>')}` : ''}</td>
       <td class="inv-sums"><table>
@@ -502,7 +503,7 @@ function receiptHTML(inv, w) {
     ${L(t('billNo'), inv.no)}${L(t('date'), dmy(inv.date))}${time ? L(t('time'), time) : ''}
     ${L(t('customer'), esc(inv.customer))}${inv.phone ? L(t('ph'), esc(inv.phone)) : ''}
     <hr>${L(t('product'), t('amount'), 'b')}
-    ${inv.items.map(i => `<div class="it"><div class="in">${esc(pname(i))}</div>${L(`${i.qty} &times; ${money(i.rate)}`, money(i.amount))}</div>`).join('')}
+    ${inv.items.map(i => `<div class="it"><div class="in">${esc(iname(i))}</div>${L(`${i.qty} &times; ${money(i.rate)}`, money(i.amount))}</div>`).join('')}
     <hr>${L(t('subtotal'), money(inv.subtotal))}
     ${inv.discount ? L(`${t('discount')}${inv.discountType === 'percent' ? ` (${inv.discountValue}%)` : ''}`, '-' + money(inv.discount)) : ''}
     ${inv.roundOff ? L(t('roundOff'), (inv.roundOff > 0 ? '+' : '-') + money(Math.abs(inv.roundOff))) : ''}
