@@ -235,39 +235,75 @@ function drawSeg() { document.querySelectorAll('[data-d]').forEach(b => b.classL
 // ---- bill lines: "+" adds a row, each row has a product dropdown and a quantity ----
 let lineSeq = 0;
 const filled = () => S.cart.filter(i => i.productId && prod(i.productId)); // lines that have a product chosen
-const lineOpts = line => S.products.map(p => {
-  const taken = S.cart.some(x => x !== line && x.productId === p.id);
-  return `<option value="${p.id}" ${line.productId === p.id ? 'selected' : ''} ${taken ? 'disabled' : ''}>${esc(pname(p))}${p.brand ? ' (' + esc(p.brand) + ')' : ''} · ₹${money(p.price)}${p.unit ? ' / ' + esc(p.unit) : ''}</option>`;
-}).join('');
+const plabel = p => pname(p) + (p.brand ? ` (${p.brand})` : '');
+// products matching what was typed (every word must appear in the name, Marathi name or brand), minus those already on the bill
+const findProducts = (line, q) => {
+  const w = q.toLowerCase().split(/\s+/).filter(Boolean);
+  return S.products.filter(p => !S.cart.some(x => x !== line && x.productId === p.id) && w.every(k => `${p.name} ${p.nameMr || ''} ${p.brand || ''}`.toLowerCase().includes(k)));
+};
 function addLine() {
   let line = S.cart.find(x => !x.productId);
   if (!line) { line = { uid: ++lineSeq, productId: null, qty: 1, rate: 0 }; S.cart.push(line); }
   drawLines(); drawTotals();
-  const sel = document.querySelector(`[data-ls="${line.uid}"]`); if (sel) { sel.focus(); sel.scrollIntoView({ block: 'nearest' }); }
+  const inp = document.querySelector(`[data-cs="${line.uid}"]`); if (inp) { inp.focus(); inp.scrollIntoView({ block: 'nearest' }); }
 }
+const rateNote = (p, i) => i.rate !== p.price ? `${t('listRate')} ₹${money(p.price)}` : '';
 function drawLines() {
   const el = $('#lines'); if (!el) return;
   if (!S.products.length) { el.innerHTML = `<div class="empty">${t('noProducts')}</div>`; return; }
   if (!S.cart.length) { el.innerHTML = `<div class="empty lempty">${t('emptyCart')}</div>`; return; }
   el.innerHTML = S.cart.map(i => {
     const p = i.productId && prod(i.productId);
-    return `<div class="lrow ${p ? 'set' : ''}"><div class="lf"><select data-ls="${i.uid}" aria-label="${t('product')}"><option value="">${t('selectProduct')}</option>${lineOpts(i)}</select>
-      ${p ? `<span class="pmeta">₹${money(p.price)}${p.unit ? ` / ${esc(p.unit)}` : ''}${p.brand ? ` &middot; ${esc(p.brand)}` : ''}</span>` : ''}</div>
+    return `<div class="lrow ${p ? 'set' : ''}"><div class="lf">
+      <div class="combo"><input class="cin" data-cs="${i.uid}" type="text" autocomplete="off" spellcheck="false" placeholder="${t('searchProduct')}" value="${p ? esc(plabel(p)) : ''}" aria-label="${t('product')}"><div class="clist" hidden></div></div>
+      ${p ? `<div class="rrow"><label>${t('rate')} (₹)</label><input class="rin" type="number" min="0" step="any" inputmode="decimal" data-lr="${i.uid}" value="${i.rate}" aria-label="${t('rate')}">${p.unit ? `<span class="pmeta">/ ${esc(p.unit)}</span>` : ''}<span class="pmeta edited" id="rn${i.uid}">${rateNote(p, i)}</span></div>` : ''}</div>
       <div class="lc">${p ? stepper(i.uid, i.qty) : ''}<span class="pamt" id="amt${i.uid}">${p ? '₹' + money(i.qty * i.rate) : ''}</span>
       <button type="button" class="ib del" data-lx="${i.uid}" title="${t('removeItem')}" aria-label="${t('removeItem')}">${ico('trash', 17)}</button></div></div>`;
   }).join('');
   const line = u => S.cart.find(x => x.uid === +u);
-  el.querySelectorAll('[data-ls]').forEach(sel => sel.onchange = () => {
-    const i = line(sel.dataset.ls), p = prod(sel.value);
-    if (p) { i.productId = p.id; i.rate = p.price; i.qty = Math.max(1, i.qty); } else { i.productId = null; i.rate = 0; }
-    drawLines(); drawTotals();
+  // type-to-search product picker
+  el.querySelectorAll('[data-cs]').forEach(inp => {
+    const i = line(inp.dataset.cs), list = inp.nextElementSibling; let q = '', hi = 0, res = [];
+    const paint = () => {
+      list.innerHTML = res.length
+        ? res.slice(0, 40).map((p, n) => `<button type="button" class="copt ${n === hi ? 'on' : ''}" data-pi="${p.id}"><span><b>${esc(pname(p))}</b>${p.brand ? ` <em>${esc(p.brand)}</em>` : ''}</span><span>₹${money(p.price)}${p.unit ? ' / ' + esc(p.unit) : ''}</span></button>`).join('') + (res.length > 40 ? `<div class="cmore">${t('typeMore')}</div>` : '')
+        : `<div class="cmore">${t('noMatch')}</div>`;
+      list.hidden = false;
+    };
+    const search = () => { res = findProducts(i, q); hi = 0; paint(); };
+    const pick = id => {
+      const p = prod(id); if (!p) return;
+      i.productId = p.id; i.rate = p.price; i.qty = Math.max(1, i.qty);
+      drawLines(); drawTotals();
+      const qty = document.querySelector(`[data-lq="${i.uid}"]`); if (qty) { qty.focus(); qty.select(); }
+    };
+    inp.onfocus = () => { q = ''; inp.select(); search(); };
+    inp.oninput = () => { q = inp.value; search(); };
+    inp.onblur = () => { list.hidden = true; const p = i.productId && prod(i.productId); inp.value = p ? plabel(p) : ''; };
+    inp.onkeydown = e => {
+      if (e.key === 'Escape') return inp.blur();
+      if (e.key === 'Enter') { e.preventDefault(); if (res[hi]) pick(res[hi].id); return; }
+      if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+      e.preventDefault(); const n = Math.min(res.length, 40); if (!n) return;
+      hi = (hi + (e.key === 'ArrowDown' ? 1 : n - 1)) % n;
+      list.querySelectorAll('.copt').forEach((b, k) => { b.classList.toggle('on', k === hi); if (k === hi) b.scrollIntoView({ block: 'nearest' }); });
+    };
+    list.onmousedown = e => e.preventDefault(); // keep focus in the search box while tapping a result
+    list.onclick = e => { const b = e.target.closest('[data-pi]'); if (b) pick(b.dataset.pi); };
   });
   el.querySelectorAll('[data-lx]').forEach(b => b.onclick = () => { S.cart = S.cart.filter(x => x.uid !== +b.dataset.lx); drawLines(); drawTotals(); });
-  const setQty = (i, n, inp) => {
-    i.qty = n; if (inp) inp.value = n;
-    const a = $('#amt' + i.uid); if (a) a.textContent = '₹' + money(i.qty * i.rate);
+  const refresh = i => {
+    const p = prod(i.productId), a = $('#amt' + i.uid), n = $('#rn' + i.uid);
+    if (a) a.textContent = '₹' + money(i.qty * i.rate);
+    if (n && p) n.textContent = rateNote(p, i);
     drawTotals();
   };
+  el.querySelectorAll('[data-lr]').forEach(inp => {
+    const i = line(inp.dataset.lr);
+    inp.oninput = () => { i.rate = r2(Math.max(0, Number(inp.value) || 0)); refresh(i); };
+    inp.onblur = () => { inp.value = i.rate; };
+  });
+  const setQty = (i, n, inp) => { i.qty = n; if (inp) inp.value = n; refresh(i); };
   el.querySelectorAll('[data-lm]').forEach(b => b.onclick = () => { const i = line(b.dataset.lm); setQty(i, Math.max(1, i.qty - 1), b.nextElementSibling); });
   el.querySelectorAll('[data-lp]').forEach(b => b.onclick = () => { const i = line(b.dataset.lp); setQty(i, i.qty + 1, b.previousElementSibling); });
   el.querySelectorAll('[data-lq]').forEach(inp => {
@@ -324,7 +360,7 @@ async function generate() {
     const inv = await api('POST', '/api/invoices', {
       customer: S.customer, phone: S.phone, payment: S.payment,
       discountType: S.discType, discountValue: Number(S.discVal) || 0,
-      items: filled().map(i => ({ productId: i.productId, qty: i.qty })),
+      items: filled().map(i => ({ productId: i.productId, qty: i.qty, rate: i.rate })),
     });
     resetBill(); renderApp(); toast(t('billCreated') + ' ' + inv.no);
     showInvoice(inv, true);

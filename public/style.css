@@ -396,3 +396,18 @@ body:has(.modal){overflow:hidden}
 .pst.printed{background:var(--ok-l);color:var(--ok)}.pst.failed{background:var(--bad-l);color:var(--bad)}.pst.processing{background:var(--warn-l);color:var(--warn)}
 .btn.sm{padding:6px 12px;font-size:13px}
 .btn:disabled{opacity:.5;cursor:not-allowed}
+
+/* product search + rate on bill lines */
+.combo{position:relative}
+.clist{position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:30;max-height:min(300px,45vh);overflow:auto;background:#fff;border:1px solid #cbd5e1;border-radius:12px;box-shadow:0 12px 30px rgba(15,23,42,.18);padding:4px}
+.clist[hidden]{display:none}
+.copt{display:flex;justify-content:space-between;align-items:baseline;gap:12px;width:100%;text-align:left;border:0;background:none;padding:9px 10px;border-radius:8px;cursor:pointer;font:inherit;color:var(--ink)}
+.copt.on,.copt:hover{background:var(--brand-l)}
+.copt em{font-style:normal;color:var(--mute);font-size:13px}
+.copt span:last-child{color:var(--mute);white-space:nowrap;font-size:13.5px}
+.cmore{padding:9px 10px;color:var(--mute);font-size:13px}
+.rrow{display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap}
+.rrow label{margin:0;font-size:13px;color:var(--mute)}
+.rrow .rin{width:110px;min-height:36px;padding:4px 10px;font-weight:600}
+.rrow .pmeta{display:inline;margin:0}
+.pmeta.edited{color:var(--warn)}
